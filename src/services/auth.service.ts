@@ -30,12 +30,7 @@ export interface AuthResponse {
     isEmailVerified: boolean;
     isActive: boolean;
     wallet: number;
-    profile: {
-      avatar?: string;
-      dateOfBirth?: Date;
-      address?: string;
-      state?: string;
-    };
+    state: string | undefined;
   };
   accessToken: string;
   refreshToken: string;
@@ -137,7 +132,7 @@ export class AuthService {
           isEmailVerified: user.isEmailVerified,
           isActive: user.isActive,
           wallet: user.wallet,
-          profile: user.profile,
+          state: user.state,
         },
         accessToken,
         refreshToken,
@@ -270,7 +265,7 @@ export class AuthService {
           isEmailVerified: user.isEmailVerified,
           isActive: user.isActive,
           wallet: user.wallet,
-          profile: user.profile,
+          state: user.state,
         },
         accessToken,
         refreshToken,

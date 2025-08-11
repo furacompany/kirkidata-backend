@@ -9,12 +9,7 @@ export interface UserProfile {
   lastName?: string;
   email?: string;
   phone?: string;
-  profile?: {
-    avatar?: string;
-    dateOfBirth?: Date;
-    address?: string;
-    state?: string;
-  };
+  state?: string;
 }
 
 export interface UserSearchFilters {
