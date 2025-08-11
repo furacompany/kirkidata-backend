@@ -66,8 +66,7 @@ const userSchema = new Schema<IUser>(
     password: {
       type: String,
       required: [true, "Password is required"],
-      minlength: [6, "Password must be at least 6 characters long"],
-      maxlength: [12, "Password cannot exceed 12 characters"],
+      // Note: Length validation is handled in the setPassword method before hashing
     },
     pin: {
       type: String,
