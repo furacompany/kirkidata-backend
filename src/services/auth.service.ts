@@ -546,17 +546,13 @@ export class AuthService {
     }
   }
 
-  // Resend Email Verification OTP
-  async resendEmailVerification(email: string): Promise<void> {
+  // Resend Email Verification OTP (for authenticated users)
+  async resendEmailVerification(userId: string): Promise<void> {
     try {
-      // Find user
-      const user = await UserModel.findOne({ email });
+      // Find user by ID (from token)
+      const user = await UserModel.findById(userId);
       if (!user) {
-        // Don't reveal if user exists or not for security
-        logger.info(
-          `Email verification OTP resend requested for email: ${email} (user not found)`
-        );
-        return;
+        throw new APIError("User not found", HttpStatus.NOT_FOUND);
       }
 
       // Check if user is active
@@ -570,9 +566,9 @@ export class AuthService {
       }
 
       // Send new email verification OTP
-      await otpService.createEmailVerificationOTP(email, user.firstName);
+      await otpService.createEmailVerificationOTP(user.email, user.firstName);
 
-      logger.info(`Email verification OTP resent to: ${email}`);
+      logger.info(`Email verification OTP resent to user: ${userId}`);
     } catch (error) {
       logger.error("Resend email verification failed:", error);
       throw error;
