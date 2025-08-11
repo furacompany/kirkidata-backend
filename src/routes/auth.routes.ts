@@ -44,8 +44,8 @@ router.post("/verify-email", (req, res, next) =>
   authController.verifyEmail(req, res, next)
 );
 
-// Resend email verification OTP
-router.post("/resend-verification", (req, res, next) =>
+// Resend email verification OTP (authenticated users only)
+router.post("/resend-verification", authenticateUser, (req, res, next) =>
   authController.resendEmailVerification(req, res, next)
 );
 

@@ -8,7 +8,6 @@ import {
   validateForgotPassword,
   validateResetPassword,
   validateEmailVerification,
-  validateResendEmailVerification,
   validateAdminRegistration,
 } from "../validations/auth.validation";
 import logger from "../utils/logger";
@@ -249,22 +248,17 @@ export class AuthController {
     next: NextFunction
   ): Promise<void> {
     try {
-      const validationResult = validateResendEmailVerification(req.body);
-      if (validationResult.error) {
-        const errorMessage =
-          validationResult.error.details?.[0]?.message || "Validation failed";
-        throw new APIError(errorMessage, HttpStatus.BAD_REQUEST);
+      // Get user ID from authenticated token
+      const userId = req.user?.id;
+      if (!userId) {
+        throw new APIError("User not authenticated", HttpStatus.UNAUTHORIZED);
       }
 
-      if (!validationResult.value) {
-        throw new APIError("Validation failed", HttpStatus.BAD_REQUEST);
-      }
-
-      await authService.resendEmailVerification(validationResult.value.email);
+      await authService.resendEmailVerification(userId);
 
       res.status(HttpStatus.OK).json({
         success: true,
-        message: "Email verification OTP resent successfully",
+        message: "Email verification OTP sent successfully",
       });
     } catch (error) {
       next(error);
