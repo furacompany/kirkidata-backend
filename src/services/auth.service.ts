@@ -83,14 +83,15 @@ export class AuthService {
         );
       }
 
-      // Create new user
+      // Create new user with email verified by default
       const user = new UserModel({
         ...userData,
+        isEmailVerified: true, // Set to true since we're not sending verification emails
       });
 
       await user.save();
 
-      // Send welcome email
+      // Send welcome email only
       try {
         const welcomeHtml = generateWelcomeEmail(user.firstName);
         await nodemailerConfig.sendEmail({
@@ -101,14 +102,6 @@ export class AuthService {
         logger.info(`Welcome email sent to: ${user.email}`);
       } catch (emailError) {
         logger.warn("Failed to send welcome email:", emailError);
-      }
-
-      // Send email verification OTP
-      try {
-        await otpService.createEmailVerificationOTP(user.email, user.firstName);
-        logger.info(`Email verification OTP sent to: ${user.email}`);
-      } catch (otpError) {
-        logger.warn("Failed to send email verification OTP:", otpError);
       }
 
       // Generate tokens
@@ -238,9 +231,11 @@ export class AuthService {
         );
       }
 
-      // Update last login time
-      user.lastLoginAt = new Date();
-      await user.save();
+      // Update last login time without triggering full save
+      await UserModel.updateOne(
+        { _id: user._id },
+        { $set: { lastLoginAt: new Date() } }
+      );
 
       // Generate tokens
       const accessToken = generateAccessToken({
@@ -307,9 +302,11 @@ export class AuthService {
         );
       }
 
-      // Update last login time
-      admin.lastLoginAt = new Date();
-      await admin.save();
+      // Update last login time without triggering full save
+      await AdminModel.updateOne(
+        { _id: admin._id },
+        { $set: { lastLoginAt: new Date() } }
+      );
 
       // Generate tokens
       const accessToken = generateAdminAccessToken({
