@@ -18,7 +18,8 @@ export const userRegistrationSchema = Joi.object({
     .pattern(/^[0-9]{11}$/)
     .required()
     .messages({
-      "string.pattern.base": "Phone number must be exactly 11 digits (e.g., 08123456789)",
+      "string.pattern.base":
+        "Phone number must be exactly 11 digits (e.g., 08123456789)",
       "any.required": "Phone number is required",
     }),
   email: Joi.string().email().required().messages({
@@ -33,7 +34,8 @@ export const userRegistrationSchema = Joi.object({
     .messages({
       "string.min": "Password must be at least 6 characters long",
       "string.max": "Password cannot exceed 12 characters",
-      "string.pattern.base": "Password can contain letters, numbers, and special characters (@$!%*?&)",
+      "string.pattern.base":
+        "Password can contain letters, numbers, and special characters (@$!%*?&)",
       "any.required": "Password is required",
     }),
   pin: Joi.string()
@@ -53,7 +55,8 @@ export const userLoginSchema = Joi.object({
     .pattern(/^[0-9]{11}$/)
     .required()
     .messages({
-      "string.pattern.base": "Phone number must be exactly 11 digits (e.g., 08123456789)",
+      "string.pattern.base":
+        "Phone number must be exactly 11 digits (e.g., 08123456789)",
       "any.required": "Phone number is required",
     }),
   password: Joi.string().required().messages({
@@ -81,7 +84,8 @@ export const adminRegistrationSchema = Joi.object({
     .pattern(/^[0-9]{11}$/)
     .required()
     .messages({
-      "string.pattern.base": "Phone number must be exactly 11 digits (e.g., 08123456789)",
+      "string.pattern.base":
+        "Phone number must be exactly 11 digits (e.g., 08123456789)",
       "any.required": "Phone number is required",
     }),
   password: Joi.string().min(6).max(12).required().messages({
@@ -214,13 +218,34 @@ export const resetPasswordSchema = Joi.object({
       "any.required": "OTP is required",
     }),
   newPassword: Joi.string()
-    .min(8)
-    .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .min(6)
+    .max(12)
+    .pattern(/^[A-Za-z0-9@$!%*?&]+$/)
     .required()
     .messages({
-      "string.min": "Password must be at least 8 characters long",
+      "string.min": "Password must be at least 6 characters long",
+      "string.max": "Password cannot exceed 12 characters",
       "string.pattern.base":
-        "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+        "Password can contain letters, numbers, and special characters (@$!%*?&)",
+      "any.required": "New password is required",
+    }),
+});
+
+// Change password validation (for authenticated users)
+export const changePasswordSchema = Joi.object({
+  currentPassword: Joi.string().required().messages({
+    "any.required": "Current password is required",
+  }),
+  newPassword: Joi.string()
+    .min(6)
+    .max(12)
+    .pattern(/^[A-Za-z0-9@$!%*?&]+$/)
+    .required()
+    .messages({
+      "string.min": "Password must be at least 6 characters long",
+      "string.max": "Password cannot exceed 12 characters",
+      "string.pattern.base":
+        "Password can contain letters, numbers, and special characters (@$!%*?&)",
       "any.required": "New password is required",
     }),
 });
@@ -266,6 +291,10 @@ export const validateForgotPassword = (data: any) => {
 
 export const validateResetPassword = (data: any) => {
   return resetPasswordSchema.validate(data);
+};
+
+export const validateChangePassword = (data: any) => {
+  return changePasswordSchema.validate(data);
 };
 
 export const validateEmailVerification = (data: any) => {

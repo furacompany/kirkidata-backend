@@ -601,6 +601,47 @@ export class AuthService {
     }
   }
 
+  // Change Password (for authenticated users)
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ message: string }> {
+    try {
+      const user = await UserModel.findById(userId).select("+password");
+      if (!user) {
+        throw new APIError("User not found", HttpStatus.NOT_FOUND);
+      }
+
+      // Verify current password
+      const isCurrentPasswordValid = await user.comparePassword(
+        currentPassword
+      );
+      if (!isCurrentPasswordValid) {
+        throw new APIError(
+          "Current password is incorrect",
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      // Hash the new password manually to avoid double-hashing
+      const saltRounds = parseInt(process.env.BCRYPT_ROUNDS || "12");
+      const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+      // Update password directly without triggering pre-save middleware
+      await UserModel.findByIdAndUpdate(userId, {
+        password: hashedNewPassword,
+      });
+
+      logger.info(`Password changed successfully for user: ${userId}`);
+
+      return { message: "Password changed successfully" };
+    } catch (error) {
+      logger.error("Password change failed:", error);
+      throw error;
+    }
+  }
+
   // Change PIN
   async changePin(
     userId: string,
