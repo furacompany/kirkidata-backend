@@ -7,8 +7,6 @@ import { AuthService } from "./auth.service";
 export interface UserProfile {
   firstName?: string;
   lastName?: string;
-  email?: string;
-  phone?: string;
   state?: string;
 }
 
@@ -87,29 +85,7 @@ class UserService {
         throw new APIError("User not found", HttpStatus.NOT_FOUND);
       }
 
-      // Check for unique constraints
-      if (profileData.phone && profileData.phone !== user.phone) {
-        const existingUser = await UserModel.findOne({
-          phone: profileData.phone,
-        });
-        if (existingUser) {
-          throw new APIError(
-            "Phone number already in use",
-            HttpStatus.CONFLICT
-          );
-        }
-      }
-
-      if (profileData.email && profileData.email !== user.email) {
-        const existingUser = await UserModel.findOne({
-          email: profileData.email,
-        });
-        if (existingUser) {
-          throw new APIError("Email already in use", HttpStatus.CONFLICT);
-        }
-      }
-
-      // Update user profile
+      // Update user profile with allowed fields (email and phone are already filtered out by validation)
       Object.assign(user, profileData);
       await user.save();
 

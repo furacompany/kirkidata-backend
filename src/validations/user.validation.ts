@@ -12,20 +12,15 @@ export const userProfileUpdateSchema = Joi.object({
     "string.min": "Last name must be at least 2 characters long",
     "string.max": "Last name cannot exceed 50 characters",
   }),
-  email: Joi.string().email().optional().messages({
-    "string.email": "Please enter a valid email address",
-  }),
-  phone: Joi.string()
-    .pattern(/^[0-9]{11}$/)
-    .optional()
-    .messages({
-      "string.pattern.base":
-        "Phone number must be exactly 11 digits (e.g., 08123456789)",
-    }),
   state: Joi.string().max(50).optional().allow(null, "").messages({
     "string.max": "State cannot exceed 50 characters",
   }),
-});
+})
+  .unknown(false)
+  .messages({
+    "object.unknown":
+      "Field '{#label}' is not allowed. Only firstName, lastName, and state can be updated.",
+  });
 
 // PIN validations (for user operations)
 export const validatePinSchema = Joi.object({
@@ -193,7 +188,15 @@ export const validateSchema = (schema: Joi.ObjectSchema, data: any) => {
       message: detail.message,
     }));
 
-    throw new APIError("Validation failed", HttpStatus.BAD_REQUEST, {
+    // Create a more descriptive main message
+    const mainMessage =
+      validationErrors.length === 1
+        ? validationErrors[0]?.message || "Validation failed"
+        : `Validation failed: ${validationErrors
+            .map((e) => `${e.field} - ${e.message}`)
+            .join(", ")}`;
+
+    throw new APIError(mainMessage, HttpStatus.BAD_REQUEST, {
       validationErrors,
     });
   }

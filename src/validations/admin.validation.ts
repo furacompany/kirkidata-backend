@@ -16,12 +16,18 @@ export const adminProfileUpdateSchema = Joi.object({
     .pattern(/^[0-9]{11}$/)
     .optional()
     .messages({
-      "string.pattern.base": "Phone number must be exactly 11 digits (e.g., 08123456789)",
+      "string.pattern.base":
+        "Phone number must be exactly 11 digits (e.g., 08123456789)",
     }),
   role: Joi.string().valid("admin", "super_admin").optional().messages({
     "any.only": "Role must be either admin or super_admin",
   }),
-});
+})
+  .unknown(false)
+  .messages({
+    "object.unknown":
+      "Field '{#label}' is not allowed. Only firstName, lastName, phone, and role can be updated.",
+  });
 
 // Admin password change validation
 export const adminPasswordChangeSchema = Joi.object({
@@ -218,7 +224,15 @@ export const validateSchema = (schema: Joi.ObjectSchema, data: any) => {
       message: detail.message,
     }));
 
-    throw new APIError("Validation failed", HttpStatus.BAD_REQUEST, {
+    // Create a more descriptive main message
+    const mainMessage =
+      validationErrors.length === 1
+        ? validationErrors[0]?.message || "Validation failed"
+        : `Validation failed: ${validationErrors
+            .map((e) => `${e.field} - ${e.message}`)
+            .join(", ")}`;
+
+    throw new APIError(mainMessage, HttpStatus.BAD_REQUEST, {
       validationErrors,
     });
   }

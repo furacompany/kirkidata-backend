@@ -90,7 +90,7 @@ class AdminService {
         throw new APIError("Admin not found", HttpStatus.NOT_FOUND);
       }
 
-      // Check for unique constraints
+      // Check for unique constraints on phone
       if (profileData.phone && profileData.phone !== admin.phone) {
         const existingAdmin = await Admin.findOne({ phone: profileData.phone });
         if (existingAdmin) {

@@ -62,6 +62,8 @@ class AdminController {
       const { adminId } = req.params;
       const profileData = req.body;
 
+      // Phone number can be changed by admins (but email cannot)
+
       // Validate request body
       const validatedData = validateSchema(
         adminProfileUpdateSchema,
