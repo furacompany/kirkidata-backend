@@ -7,6 +7,7 @@ import {
   validateRefreshToken,
   validateForgotPassword,
   validateResetPassword,
+  validateChangePassword,
   validateEmailVerification,
   validateAdminRegistration,
 } from "../validations/auth.validation";
@@ -355,6 +356,45 @@ export class AuthController {
       res.status(HttpStatus.OK).json({
         success: true,
         message: "PIN validated successfully",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Change Password
+  async changePassword(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const validationResult = validateChangePassword(req.body);
+      if (validationResult.error) {
+        const errorMessage =
+          validationResult.error.details?.[0]?.message || "Validation failed";
+        throw new APIError(errorMessage, HttpStatus.BAD_REQUEST);
+      }
+
+      if (!validationResult.value) {
+        throw new APIError("Validation failed", HttpStatus.BAD_REQUEST);
+      }
+
+      const userId = req.user?.id;
+      if (!userId) {
+        throw new APIError("User not authenticated", HttpStatus.UNAUTHORIZED);
+      }
+
+      const result = await authService.changePassword(
+        userId,
+        validationResult.value.currentPassword,
+        validationResult.value.newPassword
+      );
+
+      res.status(HttpStatus.OK).json({
+        success: true,
+        message: "Password changed successfully",
         data: result,
       });
     } catch (error) {

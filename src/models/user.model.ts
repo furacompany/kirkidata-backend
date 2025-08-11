@@ -14,12 +14,7 @@ export interface IUser extends Document {
   wallet: number;
   lastLoginAt?: Date;
   lastLogoutAt?: Date;
-  profile: {
-    avatar?: string;
-    dateOfBirth?: Date;
-    address?: string;
-    state?: string;
-  };
+  state: string | undefined;
 
   setPassword(newPassword: string): Promise<void>;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -94,12 +89,7 @@ const userSchema = new Schema<IUser>(
       type: Date,
       default: null,
     },
-    profile: {
-      avatar: String,
-      dateOfBirth: Date,
-      address: String,
-      state: String,
-    },
+    state: String,
   },
   {
     timestamps: true,

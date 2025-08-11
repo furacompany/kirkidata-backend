@@ -30,12 +30,7 @@ export interface AuthResponse {
     isEmailVerified: boolean;
     isActive: boolean;
     wallet: number;
-    profile: {
-      avatar?: string;
-      dateOfBirth?: Date;
-      address?: string;
-      state?: string;
-    };
+    state: string | undefined;
   };
   accessToken: string;
   refreshToken: string;
@@ -137,7 +132,7 @@ export class AuthService {
           isEmailVerified: user.isEmailVerified,
           isActive: user.isActive,
           wallet: user.wallet,
-          profile: user.profile,
+          state: user.state,
         },
         accessToken,
         refreshToken,
@@ -270,7 +265,7 @@ export class AuthService {
           isEmailVerified: user.isEmailVerified,
           isActive: user.isActive,
           wallet: user.wallet,
-          profile: user.profile,
+          state: user.state,
         },
         accessToken,
         refreshToken,
@@ -597,6 +592,47 @@ export class AuthService {
       return { isValid };
     } catch (error) {
       logger.error("PIN validation failed:", error);
+      throw error;
+    }
+  }
+
+  // Change Password (for authenticated users)
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ message: string }> {
+    try {
+      const user = await UserModel.findById(userId).select("+password");
+      if (!user) {
+        throw new APIError("User not found", HttpStatus.NOT_FOUND);
+      }
+
+      // Verify current password
+      const isCurrentPasswordValid = await user.comparePassword(
+        currentPassword
+      );
+      if (!isCurrentPasswordValid) {
+        throw new APIError(
+          "Current password is incorrect",
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      // Hash the new password manually to avoid double-hashing
+      const saltRounds = parseInt(process.env.BCRYPT_ROUNDS || "12");
+      const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+      // Update password directly without triggering pre-save middleware
+      await UserModel.findByIdAndUpdate(userId, {
+        password: hashedNewPassword,
+      });
+
+      logger.info(`Password changed successfully for user: ${userId}`);
+
+      return { message: "Password changed successfully" };
+    } catch (error) {
+      logger.error("Password change failed:", error);
       throw error;
     }
   }

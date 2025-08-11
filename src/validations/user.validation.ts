@@ -19,22 +19,12 @@ export const userProfileUpdateSchema = Joi.object({
     .pattern(/^[0-9]{11}$/)
     .optional()
     .messages({
-      "string.pattern.base": "Phone number must be exactly 11 digits (e.g., 08123456789)",
+      "string.pattern.base":
+        "Phone number must be exactly 11 digits (e.g., 08123456789)",
     }),
-  profile: Joi.object({
-    avatar: Joi.string().uri().optional().messages({
-      "string.uri": "Avatar must be a valid URL",
-    }),
-    dateOfBirth: Joi.date().max("now").optional().messages({
-      "date.max": "Date of birth cannot be in the future",
-    }),
-    address: Joi.string().max(200).optional().messages({
-      "string.max": "Address cannot exceed 200 characters",
-    }),
-    state: Joi.string().max(50).optional().messages({
-      "string.max": "State cannot exceed 50 characters",
-    }),
-  }).optional(),
+  state: Joi.string().max(50).optional().allow(null, "").messages({
+    "string.max": "State cannot exceed 50 characters",
+  }),
 });
 
 // PIN validations (for user operations)

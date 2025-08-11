@@ -73,6 +73,11 @@ router.get("/admin/session", authenticateAdmin, (req, res, next) =>
   authController.getSessionInfo(req, res, next)
 );
 
+// Password operations (user)
+router.post("/change-password", authenticateUser, (req, res, next) =>
+  authController.changePassword(req, res, next)
+);
+
 // PIN operations (user)
 router.post("/pin/validate", authenticateUser, (req, res, next) =>
   authController.validatePin(req, res, next)
