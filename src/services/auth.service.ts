@@ -83,15 +83,15 @@ export class AuthService {
         );
       }
 
-      // Create new user with email verified by default
+      // Create new user with email not verified by default
       const user = new UserModel({
         ...userData,
-        isEmailVerified: true, // Set to true since we're not sending verification emails
+        isEmailVerified: false, // Set to false since user needs to verify email
       });
 
       await user.save();
 
-      // Send welcome email only
+      // Send welcome email
       try {
         const welcomeHtml = generateWelcomeEmail(user.firstName);
         await nodemailerConfig.sendEmail({
@@ -102,6 +102,14 @@ export class AuthService {
         logger.info(`Welcome email sent to: ${user.email}`);
       } catch (emailError) {
         logger.warn("Failed to send welcome email:", emailError);
+      }
+
+      // Send email verification OTP
+      try {
+        await otpService.createEmailVerificationOTP(user.email, user.firstName);
+        logger.info(`Email verification OTP sent to: ${user.email}`);
+      } catch (otpError) {
+        logger.warn("Failed to send email verification OTP:", otpError);
       }
 
       // Generate tokens
@@ -488,9 +496,15 @@ export class AuthService {
         throw new APIError("Account is deactivated", HttpStatus.FORBIDDEN);
       }
 
-      // Update password
-      await user.setPassword(newPassword);
-      await user.save();
+      // Hash the new password manually to avoid double-hashing
+      const saltRounds = parseInt(process.env.BCRYPT_ROUNDS || "12");
+      const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+      // Update password directly without triggering pre-save middleware
+      await UserModel.findOneAndUpdate(
+        { email },
+        { password: hashedNewPassword }
+      );
 
       logger.info(`Password reset successful for user: ${user.email}`);
     } catch (error) {
@@ -522,9 +536,8 @@ export class AuthService {
         throw new APIError("Account is deactivated", HttpStatus.FORBIDDEN);
       }
 
-      // Update email verification status
-      user.isEmailVerified = true;
-      await user.save();
+      // Update email verification status directly without triggering pre-save middleware
+      await UserModel.findOneAndUpdate({ email }, { isEmailVerified: true });
 
       logger.info(`Email verification successful for user: ${user.email}`);
     } catch (error) {
@@ -610,9 +623,14 @@ export class AuthService {
         throw new APIError("Current PIN is incorrect", HttpStatus.BAD_REQUEST);
       }
 
-      // Set new PIN
-      await user.setPin(newPin);
-      await user.save();
+      // Hash the new PIN manually to avoid double-hashing
+      const saltRounds = parseInt(process.env.PIN_BCRYPT_ROUNDS || "10");
+      const hashedNewPin = await bcrypt.hash(newPin, saltRounds);
+
+      // Update PIN directly without triggering pre-save middleware
+      await UserModel.findByIdAndUpdate(userId, {
+        pin: hashedNewPin,
+      });
 
       logger.info(`PIN changed successfully for user: ${userId}`);
 

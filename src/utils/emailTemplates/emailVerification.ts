@@ -32,7 +32,8 @@ export const generateEmailVerificationOTP = (
             color: #9E9E9E !important;
           }
           .otp-box {
-            background: linear-gradient(135deg, #8BC34A, #FBC02D) !important;
+            background-color: #2E7D32 !important;
+            border: 2px solid #4CAF50 !important;
           }
           .warning-box {
             background-color: #FBC02D !important;
@@ -61,7 +62,8 @@ export const generateEmailVerificationOTP = (
           color: #9E9E9E;
         }
         .otp-box {
-          background: linear-gradient(135deg, #1A237E, #8BC34A);
+          background-color: #2E7D32;
+          border: 2px solid #4CAF50;
         }
         .warning-box {
           background-color: #FBC02D;
@@ -95,7 +97,7 @@ export const generateEmailVerificationOTP = (
           <p class="text-body" style="margin: 0 0 20px 0; color: #212121; font-size: 16px; line-height: 1.6;">Please use the verification code below to verify your email address:</p>
           
           <div style="text-align: center; margin: 30px 0;">
-            <div class="otp-box" style="background: linear-gradient(135deg, #1A237E, #8BC34A); color: #FFFFFF; padding: 20px; border-radius: 12px; display: inline-block; font-size: 32px; font-weight: bold; letter-spacing: 8px; box-shadow: 0 4px 15px rgba(26, 35, 126, 0.3);">
+            <div class="otp-box" style="background-color: #2E7D32; color: #FFFFFF; padding: 20px; border-radius: 12px; display: inline-block; font-size: 32px; font-weight: bold; letter-spacing: 8px; box-shadow: 0 4px 15px rgba(46, 125, 50, 0.3); border: 2px solid #4CAF50;">
               ${otp}
             </div>
           </div>
