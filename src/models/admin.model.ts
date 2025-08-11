@@ -92,13 +92,20 @@ adminSchema.index({ isActive: 1 });
 adminSchema.index({ createdAt: -1 });
 adminSchema.index({ lastLoginAt: -1 });
 
-// Pre-save middleware to hash password
+// Pre-save middleware to hash password (only for new/plain text values)
 adminSchema.pre("save", async function (next) {
   try {
     const self = this as any;
-    if (self.isModified("password")) {
+
+    // Only hash password if it's modified and not already hashed (bcrypt hashes start with $2b$)
+    if (
+      self.isModified("password") &&
+      self.password &&
+      !self.password.startsWith("$2b$")
+    ) {
       await self.hashPassword();
     }
+
     next();
   } catch (error) {
     next(error as Error);

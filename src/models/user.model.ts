@@ -71,12 +71,7 @@ const userSchema = new Schema<IUser>(
     pin: {
       type: String,
       required: true, // Changed from false to true
-      validate: {
-        validator: function (v: string) {
-          return /^\d{4}$/.test(v);
-        },
-        message: "PIN must be exactly 4 digits",
-      },
+      // Note: PIN validation is handled in the setPin method before hashing
     },
     isEmailVerified: {
       type: Boolean,
@@ -125,16 +120,25 @@ userSchema.index({ isActive: 1 });
 userSchema.index({ createdAt: -1 });
 userSchema.index({ lastLoginAt: -1 });
 
-// Pre-save middleware to hash password and PIN
+// Pre-save middleware to hash password and PIN (only for new/plain text values)
 userSchema.pre("save", async function (next) {
   try {
     const self = this as any;
-    if (self.isModified("password")) {
+
+    // Only hash password if it's modified and not already hashed (bcrypt hashes start with $2b$)
+    if (
+      self.isModified("password") &&
+      self.password &&
+      !self.password.startsWith("$2b$")
+    ) {
       await self.hashPassword();
     }
-    if (self.isModified("pin") && self.pin) {
+
+    // Only hash PIN if it's modified and not already hashed (bcrypt hashes start with $2b$)
+    if (self.isModified("pin") && self.pin && !self.pin.startsWith("$2b$")) {
       await self.hashPin();
     }
+
     next();
   } catch (error) {
     next(error as Error);

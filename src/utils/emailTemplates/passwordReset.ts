@@ -32,7 +32,8 @@ export const generatePasswordResetOTP = (
             color: #9E9E9E !important;
           }
           .otp-box {
-            background: linear-gradient(135deg, #FBC02D, #8BC34A) !important;
+            background-color: #D32F2F !important;
+            border: 2px solid #EF5350 !important;
           }
           .warning-box {
             background-color: #FBC02D !important;
@@ -65,7 +66,8 @@ export const generatePasswordResetOTP = (
           color: #9E9E9E;
         }
         .otp-box {
-          background: linear-gradient(135deg, #EF5350, #FBC02D);
+          background-color: #D32F2F;
+          border: 2px solid #EF5350;
         }
         .warning-box {
           background-color: #FBC02D;
@@ -103,7 +105,7 @@ export const generatePasswordResetOTP = (
           <p class="text-body" style="margin: 0 0 20px 0; color: #212121; font-size: 16px; line-height: 1.6;">You requested to reset your password. Use the code below to complete the process:</p>
           
           <div style="text-align: center; margin: 30px 0;">
-            <div class="otp-box" style="background: linear-gradient(135deg, #EF5350, #FBC02D); color: #FFFFFF; padding: 20px; border-radius: 12px; display: inline-block; font-size: 32px; font-weight: bold; letter-spacing: 8px; box-shadow: 0 4px 15px rgba(239, 83, 80, 0.3);">
+            <div class="otp-box" style="background-color: #D32F2F; color: #FFFFFF; padding: 20px; border-radius: 12px; display: inline-block; font-size: 32px; font-weight: bold; letter-spacing: 8px; box-shadow: 0 4px 15px rgba(211, 47, 47, 0.3); border: 2px solid #EF5350;">
               ${otp}
             </div>
           </div>

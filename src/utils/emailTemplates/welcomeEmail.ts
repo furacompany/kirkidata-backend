@@ -74,7 +74,7 @@ export const generateWelcomeEmail = (firstName: string): string => {
           <p class="text-body" style="margin: 0 0 20px 0; color: #212121; font-size: 16px; line-height: 1.6;">Your account has been created successfully. You can now log in and start using our services.</p>
           
           <div style="text-align: center; margin: 30px 0;">
-            <div style="background-color: #8BC34A; color: #FFFFFF; padding: 15px 30px; border-radius: 25px; display: inline-block; font-size: 16px; font-weight: bold; text-decoration: none;">
+            <div style="background-color: #2E7D32; color: #FFFFFF; padding: 15px 30px; border-radius: 25px; display: inline-block; font-size: 16px; font-weight: bold; text-decoration: none; border: 2px solid #4CAF50; box-shadow: 0 2px 8px rgba(46, 125, 50, 0.3);">
               🚀 Get Started
             </div>
           </div>
