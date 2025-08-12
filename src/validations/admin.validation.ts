@@ -33,18 +33,20 @@ export const adminProfileUpdateSchema = Joi.object({
 export const adminPasswordChangeSchema = Joi.object({
   currentPassword: Joi.string().required().messages({
     "any.required": "Current password is required",
+    "string.empty": "Current password cannot be empty",
   }),
-  newPassword: Joi.string().min(6).max(12).required().messages({
-    "string.min": "New password must be at least 6 characters long",
-    "string.max": "New password cannot exceed 12 characters",
-    "any.required": "New password is required",
-  }),
-  confirmPassword: Joi.string()
-    .valid(Joi.ref("newPassword"))
+  newPassword: Joi.string()
+    .min(6)
+    .max(12)
+    .pattern(/^[A-Za-z0-9@$!%*?&]+$/)
     .required()
     .messages({
-      "any.only": "Passwords do not match",
-      "any.required": "Password confirmation is required",
+      "string.min": "New password must be at least 6 characters long",
+      "string.max": "New password cannot exceed 12 characters",
+      "string.pattern.base":
+        "New password can contain letters, numbers, and special characters (@$!%*?&)",
+      "any.required": "New password is required",
+      "string.empty": "New password cannot be empty",
     }),
 });
 
@@ -238,4 +240,8 @@ export const validateSchema = (schema: Joi.ObjectSchema, data: any) => {
   }
 
   return value;
+};
+
+export const validateAdminPasswordChange = (data: any) => {
+  return adminPasswordChangeSchema.validate(data);
 };

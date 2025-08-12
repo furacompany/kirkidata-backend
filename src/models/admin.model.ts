@@ -1,5 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 import bcrypt from "bcrypt";
+import APIError from "../error/APIError";
+import { HttpStatus } from "../constants/httpStatus.constant";
 
 export interface IAdmin extends Document {
   _id: mongoose.Types.ObjectId;
@@ -122,13 +124,38 @@ adminSchema.methods.hashPassword = async function (): Promise<void> {
 adminSchema.methods.setPassword = async function (
   newPassword: string
 ): Promise<void> {
-  if (
-    typeof newPassword !== "string" ||
-    newPassword.length < 6 ||
-    newPassword.length > 12
-  ) {
-    throw new Error("Password must be between 6 and 12 characters");
+  // Validate password type
+  if (typeof newPassword !== "string") {
+    throw new APIError(
+      "Password must be a string",
+      HttpStatus.BAD_REQUEST
+    );
   }
+
+  // Validate password length
+  if (newPassword.length < 6) {
+    throw new APIError(
+      "Password must be at least 6 characters long",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
+  if (newPassword.length > 12) {
+    throw new APIError(
+      "Password cannot exceed 12 characters",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
+  // Validate password format (optional - can be removed if not needed)
+  const passwordRegex = /^[A-Za-z0-9@$!%*?&]+$/;
+  if (!passwordRegex.test(newPassword)) {
+    throw new APIError(
+      "Password can contain letters, numbers, and special characters (@$!%*?&)",
+      HttpStatus.BAD_REQUEST
+    );
+  }
+
   const saltRounds = parseInt(process.env.BCRYPT_ROUNDS || "12");
   this.password = await bcrypt.hash(newPassword, saltRounds);
 };
