@@ -99,13 +99,7 @@ export class AuthService {
         logger.warn("Failed to send welcome email:", emailError);
       }
 
-      // Send email verification OTP
-      try {
-        await otpService.createEmailVerificationOTP(user.email, user.firstName);
-        logger.info(`Email verification OTP sent to: ${user.email}`);
-      } catch (otpError) {
-        logger.warn("Failed to send email verification OTP:", otpError);
-      }
+
 
       // Generate tokens
       const accessToken = generateAccessToken({
@@ -608,6 +602,27 @@ export class AuthService {
         throw new APIError("User not found", HttpStatus.NOT_FOUND);
       }
 
+      // Validate new password format
+      if (!newPassword || typeof newPassword !== "string") {
+        throw new APIError("New password is required", HttpStatus.BAD_REQUEST);
+      }
+
+      if (newPassword.length < 6 || newPassword.length > 12) {
+        throw new APIError(
+          "New password must be between 6 and 12 characters",
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      // Validate password format
+      const passwordRegex = /^[A-Za-z0-9@$!%*?&]+$/;
+      if (!passwordRegex.test(newPassword)) {
+        throw new APIError(
+          "Password can contain letters, numbers, and special characters (@$!%*?&)",
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
       // Verify current password
       const isCurrentPasswordValid = await user.comparePassword(
         currentPassword
@@ -615,6 +630,15 @@ export class AuthService {
       if (!isCurrentPasswordValid) {
         throw new APIError(
           "Current password is incorrect",
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      // Check if new password is same as current password
+      const isNewPasswordSame = await user.comparePassword(newPassword);
+      if (isNewPasswordSame) {
+        throw new APIError(
+          "New password must be different from current password",
           HttpStatus.BAD_REQUEST
         );
       }
@@ -649,10 +673,31 @@ export class AuthService {
         throw new APIError("User not found", HttpStatus.NOT_FOUND);
       }
 
+      // Validate new PIN format
+      if (!newPin || typeof newPin !== "string") {
+        throw new APIError("New PIN is required", HttpStatus.BAD_REQUEST);
+      }
+
+      if (!/^\d{4}$/.test(newPin)) {
+        throw new APIError(
+          "PIN must be exactly 4 digits",
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
       // Verify current PIN
       const isCurrentPinValid = await user.comparePin(currentPin);
       if (!isCurrentPinValid) {
         throw new APIError("Current PIN is incorrect", HttpStatus.BAD_REQUEST);
+      }
+
+      // Check if new PIN is same as current PIN
+      const isNewPinSame = await user.comparePin(newPin);
+      if (isNewPinSame) {
+        throw new APIError(
+          "New PIN must be different from current PIN",
+          HttpStatus.BAD_REQUEST
+        );
       }
 
       // Hash the new PIN manually to avoid double-hashing

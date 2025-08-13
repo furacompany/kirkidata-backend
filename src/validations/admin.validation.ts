@@ -16,29 +16,37 @@ export const adminProfileUpdateSchema = Joi.object({
     .pattern(/^[0-9]{11}$/)
     .optional()
     .messages({
-      "string.pattern.base": "Phone number must be exactly 11 digits (e.g., 08123456789)",
+      "string.pattern.base":
+        "Phone number must be exactly 11 digits (e.g., 08123456789)",
     }),
   role: Joi.string().valid("admin", "super_admin").optional().messages({
     "any.only": "Role must be either admin or super_admin",
   }),
-});
+})
+  .unknown(false)
+  .messages({
+    "object.unknown":
+      "Field '{#label}' is not allowed. Only firstName, lastName, phone, and role can be updated.",
+  });
 
 // Admin password change validation
 export const adminPasswordChangeSchema = Joi.object({
   currentPassword: Joi.string().required().messages({
     "any.required": "Current password is required",
+    "string.empty": "Current password cannot be empty",
   }),
-  newPassword: Joi.string().min(6).max(12).required().messages({
-    "string.min": "New password must be at least 6 characters long",
-    "string.max": "New password cannot exceed 12 characters",
-    "any.required": "New password is required",
-  }),
-  confirmPassword: Joi.string()
-    .valid(Joi.ref("newPassword"))
+  newPassword: Joi.string()
+    .min(6)
+    .max(12)
+    .pattern(/^[A-Za-z0-9@$!%*?&]+$/)
     .required()
     .messages({
-      "any.only": "Passwords do not match",
-      "any.required": "Password confirmation is required",
+      "string.min": "New password must be at least 6 characters long",
+      "string.max": "New password cannot exceed 12 characters",
+      "string.pattern.base":
+        "New password can contain letters, numbers, and special characters (@$!%*?&)",
+      "any.required": "New password is required",
+      "string.empty": "New password cannot be empty",
     }),
 });
 
@@ -218,10 +226,22 @@ export const validateSchema = (schema: Joi.ObjectSchema, data: any) => {
       message: detail.message,
     }));
 
-    throw new APIError("Validation failed", HttpStatus.BAD_REQUEST, {
+    // Create a more descriptive main message
+    const mainMessage =
+      validationErrors.length === 1
+        ? validationErrors[0]?.message || "Validation failed"
+        : `Validation failed: ${validationErrors
+            .map((e) => `${e.field} - ${e.message}`)
+            .join(", ")}`;
+
+    throw new APIError(mainMessage, HttpStatus.BAD_REQUEST, {
       validationErrors,
     });
   }
 
   return value;
+};
+
+export const validateAdminPasswordChange = (data: any) => {
+  return adminPasswordChangeSchema.validate(data);
 };

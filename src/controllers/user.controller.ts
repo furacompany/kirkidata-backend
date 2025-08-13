@@ -84,6 +84,21 @@ class UserController {
       const { userId } = req.params;
       const profileData = req.body;
 
+      // Check for restricted fields
+      if (profileData.email) {
+        throw new APIError(
+          "Email cannot be changed. Please contact support if you need to update your email.",
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      if (profileData.phone) {
+        throw new APIError(
+          "Phone number cannot be changed. Please contact support if you need to update your phone number.",
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
       // Validate request body
       const validatedData = validateSchema(
         userProfileUpdateSchema,
