@@ -99,13 +99,7 @@ export class AuthService {
         logger.warn("Failed to send welcome email:", emailError);
       }
 
-      // Send email verification OTP
-      try {
-        await otpService.createEmailVerificationOTP(user.email, user.firstName);
-        logger.info(`Email verification OTP sent to: ${user.email}`);
-      } catch (otpError) {
-        logger.warn("Failed to send email verification OTP:", otpError);
-      }
+
 
       // Generate tokens
       const accessToken = generateAccessToken({
