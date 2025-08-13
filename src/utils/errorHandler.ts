@@ -182,11 +182,11 @@ const handleNotFoundError = (error: any): APIError => {
 const handleConflictError = (error: any): APIError => {
   if (error instanceof mongoose.Error && (error as any).code === 11000) {
     const field = Object.keys((error as any).keyPattern)[0];
-    return new APIError(
-      `${field.charAt(0).toUpperCase() + field.slice(1)} already exists`,
-      HttpStatus.CONFLICT,
-      { duplicateField: field }
-    );
+    const message = field
+      ? `${field.charAt(0).toUpperCase() + field.slice(1)} already exists`
+      : "A resource with this value already exists.";
+
+    return new APIError(message, HttpStatus.CONFLICT, { duplicateField: field });
   }
 
   if (error instanceof APIError) return error;
