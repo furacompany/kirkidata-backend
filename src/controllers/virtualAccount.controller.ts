@@ -205,34 +205,53 @@ class VirtualAccountController {
       const signature = req.headers["x-wiaxy-signature"] as string;
       const payload = req.body;
 
+      logger.info("Webhook received:", {
+        hasSignature: !!signature,
+        signatureLength: signature?.length,
+        payloadKeys: Object.keys(payload),
+        event: payload.event,
+        ip: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
+      // Verify signature in all environments (development and production)
       if (!signature) {
+        logger.error("Missing webhook signature");
         throw new APIError(
           "Missing webhook signature",
           HttpStatus.UNAUTHORIZED
         );
       }
 
-      // Verify webhook signature
       const isValidSignature = virtualAccountService.verifyWebhookSignature(
         signature,
         JSON.stringify(payload)
       );
 
       if (!isValidSignature) {
+        logger.error("Invalid webhook signature:", {
+          receivedSignature: signature,
+          payloadEvent: payload.event,
+        });
         throw new APIError(
           "Invalid webhook signature",
           HttpStatus.UNAUTHORIZED
         );
       }
 
+      logger.info("Webhook signature verified successfully");
+
       // Process payment notification
       await virtualAccountService.processPaymentNotification(payload);
+
+      logger.info("Webhook processed successfully");
 
       res.status(HttpStatus.OK).json({
         success: true,
         message: "Webhook processed successfully",
       });
     } catch (error) {
+      logger.error("Webhook processing failed:", error);
       next(error);
     }
   }
@@ -273,7 +292,6 @@ class VirtualAccountController {
           baseURL: billstackConfig.baseURL,
           hasSecretKey: !!billstackConfig.secretKey,
           hasPublicKey: !!billstackConfig.publicKey,
-          hasWebhookSecret: !!billstackConfig.webhookSecret,
           secretKeyPrefix: billstackConfig.secretKey
             ? billstackConfig.secretKey.substring(0, 10) + "..."
             : "not set",
