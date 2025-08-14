@@ -11,7 +11,6 @@ export interface BillStackConfig {
   baseURL: string;
   secretKey: string;
   publicKey: string;
-  webhookSecret: string;
 }
 
 export interface CreateVirtualAccountRequest {
@@ -55,25 +54,33 @@ export interface VirtualAccountKYCResponse {
 }
 
 export interface BillStackWebhookPayload {
-  event: string;
+  event: string; // "PAYMENT_NOTIFICATION" (note the typo in BillStack docs)
   data: {
     type: string;
     reference: string;
     merchant_reference: string;
     wiaxy_ref: string;
+    transaction_ref: string;
     amount: string;
     created_at: string;
     account: {
-      account_number: string;
       account_name: string;
+      account_number: string;
+      bank_id: string;
       bank_name: string;
       created_at: string;
     };
     payer: {
+      account_name: string;
       account_number: string;
-      first_name: string;
-      last_name: string;
-      createdAt: string;
+      bank_id: string;
+      bank_name: string;
+      created_at: string;
+    };
+    customer: {
+      email: string;
+      firstName: string;
+      lastName: string;
     };
   };
 }
@@ -87,7 +94,6 @@ class BillStackAPI {
       baseURL: process.env.BILLSTACK_BASE_URL || "https://api.billstack.co/v2",
       secretKey: process.env.BILLSTACK_SECRET_KEY || "",
       publicKey: process.env.BILLSTACK_PUBLIC_KEY || "",
-      webhookSecret: process.env.BILLSTACK_WEBHOOK_SECRET || "",
     };
 
     this.client = axios.create({
@@ -294,12 +300,29 @@ class BillStackAPI {
   // Verify webhook signature
   verifyWebhookSignature(signature: string, payload: string): boolean {
     try {
+      logger.info("Verifying webhook signature:", {
+        receivedSignature: signature,
+        secretKeyExists: !!this.config.secretKey,
+        secretKeyPrefix: this.config.secretKey
+          ? this.config.secretKey.substring(0, 10) + "..."
+          : "not set",
+      });
+
+      // Use the BillStack secret key directly for MD5 hash
       const expectedSignature = crypto
         .createHash("md5")
-        .update(this.config.webhookSecret)
+        .update(this.config.secretKey)
         .digest("hex");
 
-      return signature === expectedSignature;
+      const isValid = signature === expectedSignature;
+
+      logger.info("Webhook signature verification result:", {
+        isValid,
+        expectedSignature,
+        receivedSignature: signature,
+      });
+
+      return isValid;
     } catch (error) {
       logger.error("Webhook signature verification failed:", error);
       return false;
@@ -321,15 +344,30 @@ class BillStackAPI {
 
   // Validate webhook payload
   validateWebhookPayload(payload: BillStackWebhookPayload): boolean {
-    return Boolean(
-      payload.event === "PAYMENT_NOTIFIFICATION" &&
+    logger.info("Validating webhook payload:", {
+      event: payload.event,
+      type: payload.data?.type,
+      hasReference: !!payload.data?.reference,
+      hasMerchantReference: !!payload.data?.merchant_reference,
+      hasAmount: !!payload.data?.amount,
+      hasAccountNumber: !!payload.data?.account?.account_number,
+      hasPayerAccountNumber: !!payload.data?.payer?.account_number,
+      hasCustomer: !!payload.data?.customer?.email,
+    });
+
+    const isValid = Boolean(
+      payload.event === "PAYMENT_NOTIFICATION" &&
         payload.data.type === "RESERVED_ACCOUNT_TRANSACTION" &&
         payload.data.reference &&
         payload.data.merchant_reference &&
         payload.data.amount &&
         payload.data.account?.account_number &&
-        payload.data.payer?.account_number
+        payload.data.payer?.account_number &&
+        payload.data.customer?.email
     );
+
+    logger.info("Webhook payload validation result:", { isValid });
+    return isValid;
   }
 
   // Get configuration
@@ -342,9 +380,9 @@ class BillStackAPI {
     const hasBaseURL = this.config.baseURL !== "";
     const hasSecretKey = this.config.secretKey !== "";
     const hasPublicKey = this.config.publicKey !== "";
-    const hasWebhookSecret = this.config.webhookSecret !== "";
+    // Webhook secret is not needed since we use the main secret key
 
-    return hasBaseURL && hasSecretKey && hasPublicKey && hasWebhookSecret;
+    return hasBaseURL && hasSecretKey && hasPublicKey;
   }
 }
 

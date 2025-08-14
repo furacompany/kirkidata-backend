@@ -360,14 +360,34 @@ class VirtualAccountService {
   // Process webhook payment notification
   async processPaymentNotification(webhookPayload: any): Promise<void> {
     try {
+      logger.info("Processing webhook payment notification:", {
+        payloadKeys: Object.keys(webhookPayload),
+        event: webhookPayload.event,
+        hasData: !!webhookPayload.data,
+        dataKeys: webhookPayload.data ? Object.keys(webhookPayload.data) : [],
+      });
+
       // Parse and validate webhook payload
       const payload = billstackAPI.parseWebhookPayload(webhookPayload);
 
       if (!billstackAPI.validateWebhookPayload(payload)) {
+        logger.error("Webhook payload validation failed:", webhookPayload);
         throw new APIError("Invalid webhook payload", HttpStatus.BAD_REQUEST);
       }
 
       const { data } = payload;
+      logger.info("Webhook data extracted:", {
+        reference: data.reference,
+        amount: data.amount,
+        accountNumber: data.account?.account_number,
+        merchantReference: data.merchant_reference,
+        wiaxyRef: data.wiaxy_ref,
+        transactionRef: data.transaction_ref,
+        payerAccountNumber: data.payer?.account_number,
+        payerAccountName: data.payer?.account_name,
+        customerEmail: data.customer?.email,
+        customerName: `${data.customer?.firstName} ${data.customer?.lastName}`,
+      });
 
       // Check if transaction already exists
       const existingTransaction = await TransactionModel.findOne({
@@ -375,9 +395,13 @@ class VirtualAccountService {
       });
 
       if (existingTransaction) {
-        logger.info(`Transaction ${data.reference} already processed`);
+        logger.info(
+          `Transaction ${data.reference} already processed, skipping`
+        );
         return;
       }
+
+      logger.info(`Processing new transaction: ${data.reference}`);
 
       // Find virtual account by account number
       const virtualAccount = await VirtualAccountModel.findOne({
@@ -391,6 +415,19 @@ class VirtualAccountService {
         );
         throw new APIError("Virtual account not found", HttpStatus.NOT_FOUND);
       }
+
+      logger.info(`Found virtual account for user: ${virtualAccount.userId}`);
+
+      // Get user before updating wallet
+      const userBeforeUpdate = await UserModel.findById(virtualAccount.userId);
+      if (!userBeforeUpdate) {
+        logger.error(`User not found: ${virtualAccount.userId}`);
+        throw new APIError("User not found", HttpStatus.NOT_FOUND);
+      }
+
+      logger.info(
+        `User wallet balance before update: ${userBeforeUpdate.wallet} NGN`
+      );
 
       // Create transaction record
       const transaction = new TransactionModel({
@@ -406,21 +443,33 @@ class VirtualAccountService {
         description: `Payment received via ${data.account.bank_name}`,
         metadata: {
           payerAccountNumber: data.payer.account_number,
-          payerFirstName: data.payer.first_name,
-          payerLastName: data.payer.last_name,
+          payerAccountName: data.payer.account_name,
+          payerBankName: data.payer.bank_name,
+          payerBankId: data.payer.bank_id,
           bankName: data.account.bank_name,
+          bankId: data.account.bank_id,
           accountNumber: data.account.account_number,
           accountName: data.account.account_name,
+          customerEmail: data.customer?.email,
+          customerFirstName: data.customer?.firstName,
+          customerLastName: data.customer?.lastName,
+          transactionRef: data.transaction_ref,
         },
       });
 
       await transaction.save();
+      logger.info(`Transaction saved: ${data.reference}`);
 
       // Update user's wallet balance
+      const amount = parseFloat(data.amount);
+      logger.info(
+        `Updating wallet balance for user ${virtualAccount.userId} by ${amount} NGN`
+      );
+
       const updatedUser = await UserModel.findByIdAndUpdate(
         virtualAccount.userId,
         {
-          $inc: { wallet: parseFloat(data.amount) },
+          $inc: { wallet: amount },
         },
         { new: true }
       );
@@ -436,7 +485,7 @@ class VirtualAccountService {
       }
 
       logger.info(
-        `Payment processed successfully: ${data.reference} - Amount: ${data.amount} NGN`
+        `Payment processed successfully: ${data.reference} - Amount: ${data.amount} NGN - Old balance: ${userBeforeUpdate.wallet} NGN - New balance: ${updatedUser.wallet} NGN`
       );
     } catch (error) {
       logger.error("Failed to process payment notification:", error);
