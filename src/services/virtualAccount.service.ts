@@ -391,17 +391,22 @@ class VirtualAccountService {
 
       // Check if transaction already exists
       const existingTransaction = await TransactionModel.findOne({
-        reference: data.reference,
+        $or: [
+          { reference: data.reference },
+          { wiaxyRef: data.transaction_ref }, // Use transaction_ref as backup check
+        ],
       });
 
       if (existingTransaction) {
         logger.info(
-          `Transaction ${data.reference} already processed, skipping`
+          `Transaction ${data.reference} (${data.transaction_ref}) already processed, skipping`
         );
         return;
       }
 
-      logger.info(`Processing new transaction: ${data.reference}`);
+      logger.info(
+        `Processing new transaction: ${data.reference} (${data.transaction_ref})`
+      );
 
       // Find virtual account by account number
       const virtualAccount = await VirtualAccountModel.findOne({
@@ -438,7 +443,7 @@ class VirtualAccountService {
         currency: "NGN",
         status: "completed",
         reference: data.reference,
-        wiaxyRef: data.wiaxy_ref,
+        wiaxyRef: data.transaction_ref, // Use transaction_ref as wiaxyRef for unique identification
         merchantReference: data.merchant_reference,
         description: `Payment received via ${data.account.bank_name}`,
         metadata: {

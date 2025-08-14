@@ -92,6 +92,7 @@ const transactionSchema = new Schema<ITransaction>(
 transactionSchema.index({ userId: 1 });
 transactionSchema.index({ virtualAccountId: 1 });
 transactionSchema.index({ reference: 1 }, { unique: true });
+transactionSchema.index({ wiaxyRef: 1 }, { sparse: true }); // Add index for wiaxyRef
 transactionSchema.index({ status: 1 });
 transactionSchema.index({ type: 1 });
 transactionSchema.index({ createdAt: -1 });
