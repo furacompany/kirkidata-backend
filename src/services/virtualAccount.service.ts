@@ -478,8 +478,11 @@ class VirtualAccountService {
         // Handle duplicate key error specifically
         if (saveError.code === 11000) {
           const duplicateField = Object.keys(saveError.keyPattern || {})[0];
+          const duplicateValue = duplicateField
+            ? saveError.keyValue?.[duplicateField]
+            : "unknown";
           logger.warn(
-            `Duplicate transaction detected. Field: ${duplicateField}, Value: ${saveError.keyValue?.[duplicateField]}`
+            `Duplicate transaction detected. Field: ${duplicateField}, Value: ${duplicateValue}`
           );
 
           // Check if this is a wiaxyRef duplicate (which should not happen with our logic)
