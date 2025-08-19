@@ -61,11 +61,11 @@ const transactionSchema = new Schema<ITransaction>(
     reference: {
       type: String,
       required: [true, "Reference is required"],
-      unique: true,
     },
     wiaxyRef: {
       type: String,
       sparse: true,
+      unique: true,
     },
     merchantReference: {
       type: String,
@@ -91,8 +91,8 @@ const transactionSchema = new Schema<ITransaction>(
 // Indexes
 transactionSchema.index({ userId: 1 });
 transactionSchema.index({ virtualAccountId: 1 });
-transactionSchema.index({ reference: 1 }, { unique: true });
-transactionSchema.index({ wiaxyRef: 1 }, { sparse: true }); // Add index for wiaxyRef
+transactionSchema.index({ reference: 1 }); // Remove unique constraint from reference
+transactionSchema.index({ wiaxyRef: 1 }, { unique: true, sparse: true }); // Make wiaxyRef unique
 transactionSchema.index({ status: 1 });
 transactionSchema.index({ type: 1 });
 transactionSchema.index({ createdAt: -1 });
