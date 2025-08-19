@@ -389,20 +389,27 @@ class VirtualAccountService {
         customerName: `${data.customer?.firstName} ${data.customer?.lastName}`,
       });
 
-      // Check if transaction already exists
+      // Check if transaction already exists using the unique transaction_ref
+      // Note: reference (R-GDLZSHBCQY) is the same for all transactions to the same account
+      // transaction_ref is the unique identifier for each payment
+      logger.info(
+        `Checking for existing transaction with wiaxyRef: ${data.transaction_ref}`
+      );
+
       const existingTransaction = await TransactionModel.findOne({
-        $or: [
-          { reference: data.reference },
-          { wiaxyRef: data.transaction_ref }, // Use transaction_ref as backup check
-        ],
+        wiaxyRef: data.transaction_ref,
       });
 
       if (existingTransaction) {
         logger.info(
-          `Transaction ${data.reference} (${data.transaction_ref}) already processed, skipping`
+          `Transaction with wiaxyRef ${data.transaction_ref} already processed, skipping. Existing transaction: ${existingTransaction._id}`
         );
         return;
       }
+
+      logger.info(
+        `No existing transaction found with wiaxyRef: ${data.transaction_ref}`
+      );
 
       logger.info(
         `Processing new transaction: ${data.reference} (${data.transaction_ref})`
@@ -462,8 +469,40 @@ class VirtualAccountService {
         },
       });
 
-      await transaction.save();
-      logger.info(`Transaction saved: ${data.reference}`);
+      try {
+        await transaction.save();
+        logger.info(
+          `Transaction saved: ${data.reference} with wiaxyRef: ${data.transaction_ref} and ID: ${transaction._id}`
+        );
+      } catch (saveError: any) {
+        // Handle duplicate key error specifically
+        if (saveError.code === 11000) {
+          const duplicateField = Object.keys(saveError.keyPattern || {})[0];
+          logger.warn(
+            `Duplicate transaction detected. Field: ${duplicateField}, Value: ${saveError.keyValue?.[duplicateField]}`
+          );
+
+          // Check if this is a wiaxyRef duplicate (which should not happen with our logic)
+          if (duplicateField === "wiaxyRef") {
+            logger.error(
+              `Unexpected duplicate wiaxyRef: ${data.transaction_ref}. This should not happen with our duplicate detection logic.`
+            );
+            throw new APIError(
+              "Transaction processing failed due to duplicate detection issue",
+              HttpStatus.INTERNAL_SERVER_ERROR
+            );
+          }
+
+          // For other duplicate fields, just skip
+          logger.info(
+            `Skipping transaction due to duplicate ${duplicateField}`
+          );
+          return;
+        }
+
+        // Re-throw other errors
+        throw saveError;
+      }
 
       // Update user's wallet balance
       const amount = parseFloat(data.amount);
