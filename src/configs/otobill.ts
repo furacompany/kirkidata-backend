@@ -50,17 +50,10 @@ export interface OtoBillDataPlan {
   networkName: string;
   planType: string;
   validityDays: number;
-  originalPrice: number;
-  price: number;
+  price: number; // Single price field from OtoBill API
   formattedPrice: string;
-  profit: number;
-  formattedProfit: string;
   status?: string;
   isVisible?: boolean;
-  customerPrice?: number;
-  agentPrice?: number;
-  developerPrice?: number;
-  finalPrice?: number;
 }
 
 export interface OtoBillAirtimePurchase {

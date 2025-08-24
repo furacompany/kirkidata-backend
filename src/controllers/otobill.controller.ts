@@ -251,9 +251,9 @@ class OtoBillController {
           planId: dataPlan.planId, // Return actual OtoBill planId
           name: dataPlan.name,
           networkName: dataPlan.networkName,
-          originalPrice: dataPlan.originalPrice,
+          originalPrice: dataPlan.originalPrice || 0, // Handle undefined case
           adminPrice: dataPlan.adminPrice,
-          profit: dataPlan.adminPrice - dataPlan.originalPrice,
+          profit: dataPlan.adminPrice - (dataPlan.originalPrice || 0), // Handle undefined case
         },
       });
     } catch (error) {
@@ -325,9 +325,9 @@ class OtoBillController {
         networkName: plan.networkName,
         planType: plan.planType,
         validityDays: plan.validityDays,
-        originalPrice: plan.originalPrice,
+        originalPrice: plan.originalPrice || 0, // Handle undefined case
         adminPrice: plan.adminPrice,
-        profit: plan.adminPrice - plan.originalPrice,
+        profit: plan.adminPrice - (plan.originalPrice || 0), // Handle undefined case
         isActive: plan.isActive,
         lastSynced: plan.lastSynced,
       }));
