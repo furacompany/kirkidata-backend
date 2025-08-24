@@ -103,12 +103,12 @@ class OtoBillService {
         networkName: plan.networkName,
         planType: plan.planType,
         validityDays: plan.validityDays,
-        originalPrice: plan.originalPrice,
+        originalPrice: plan.originalPrice || 0, // Handle undefined case
         price: plan.adminPrice, // Use admin price as the selling price
         formattedPrice: `₦${plan.adminPrice.toLocaleString()}`,
-        profit: plan.adminPrice - plan.originalPrice,
+        profit: plan.adminPrice - (plan.originalPrice || 0), // Handle undefined case
         formattedProfit: `₦${(
-          plan.adminPrice - plan.originalPrice
+          plan.adminPrice - (plan.originalPrice || 0)
         ).toLocaleString()}`,
       }));
 
@@ -176,12 +176,12 @@ class OtoBillService {
         networkName: plan.networkName,
         planType: plan.planType,
         validityDays: plan.validityDays,
-        originalPrice: plan.originalPrice,
+        originalPrice: plan.originalPrice || 0, // Handle undefined case
         price: plan.adminPrice, // Use admin price as the selling price
         formattedPrice: `₦${plan.adminPrice.toLocaleString()}`,
-        profit: plan.adminPrice - plan.originalPrice,
+        profit: plan.adminPrice - (plan.originalPrice || 0), // Handle undefined case
         formattedProfit: `₦${(
-          plan.adminPrice - plan.originalPrice
+          plan.adminPrice - (plan.originalPrice || 0)
         ).toLocaleString()}`,
       }));
 
@@ -240,7 +240,7 @@ class OtoBillService {
                 existingPlan.name = plan.name;
                 existingPlan.planType = plan.planType;
                 existingPlan.validityDays = plan.validityDays;
-                existingPlan.originalPrice = plan.originalPrice;
+                existingPlan.originalPrice = plan.price; // Use the new 'price' field
                 // Don't update adminPrice - let admin keep their custom pricing
                 existingPlan.lastSynced = new Date();
 
@@ -260,8 +260,8 @@ class OtoBillService {
                   networkName: plan.networkName,
                   planType: plan.planType,
                   validityDays: plan.validityDays,
-                  originalPrice: plan.originalPrice,
-                  adminPrice: plan.originalPrice, // Set admin price same as original initially
+                  originalPrice: plan.price, // Use the new 'price' field
+                  adminPrice: plan.price, // Set admin price same as OtoBill price initially
                   isActive: true,
                   isVisible: true,
                   lastSynced: new Date(),

@@ -369,7 +369,7 @@ class PurchaseService {
         phoneNumber: data.phoneNumber,
         planId: dataPlan.planId, // Use actual OtoBill planId
         planName: dataPlan.name,
-        profit: dataPlan.adminPrice - dataPlan.originalPrice,
+        profit: dataPlan.adminPrice - (dataPlan.originalPrice || 0), // Handle undefined case
       });
 
       await transaction.save();
@@ -398,7 +398,7 @@ class PurchaseService {
           transactionId: transaction._id,
           reference: transaction.reference,
           amount: dataPlan.adminPrice,
-          profit: dataPlan.adminPrice - dataPlan.originalPrice,
+          profit: dataPlan.adminPrice - (dataPlan.originalPrice || 0), // Handle undefined case
           status: "completed",
           description: transaction.description,
           networkName: dataPlan.networkName,

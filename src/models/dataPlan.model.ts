@@ -9,8 +9,8 @@ export interface IDataPlan extends Document {
   networkName: string;
   planType: string;
   validityDays: number;
-  originalPrice: number; // Price from OtoBill
-  adminPrice: number; // Price set by admin
+  originalPrice?: number; // Price from OtoBill (optional during sync)
+  adminPrice: number; // Price set by admin (required for operations)
   isActive: boolean;
   isVisible: boolean;
   lastSynced: Date;
@@ -58,7 +58,7 @@ const dataPlanSchema = new Schema<IDataPlan>(
     },
     originalPrice: {
       type: Number,
-      required: [true, "Original price is required"],
+      required: false, // Made optional since it might not be available during sync
       min: [0, "Original price cannot be negative"],
     },
     adminPrice: {
