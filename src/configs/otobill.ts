@@ -53,7 +53,6 @@ export interface OtoBillDataPlan {
   price: number; // Single price field from OtoBill API
   formattedPrice: string;
   status?: string;
-  isVisible?: boolean;
 }
 
 export interface OtoBillAirtimePurchase {

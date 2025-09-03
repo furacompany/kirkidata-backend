@@ -36,7 +36,6 @@ class PurchaseService {
       const categories = await DataPlanModel.distinct("planType", {
         networkName,
         isActive: true,
-        isVisible: true,
       });
 
       return categories;
@@ -59,7 +58,6 @@ class PurchaseService {
       const query: any = {
         networkName,
         isActive: true,
-        isVisible: true,
       };
 
       if (planType) {
@@ -132,7 +130,6 @@ class PurchaseService {
         networkName,
         planType,
         isActive: true,
-        isVisible: true,
       };
 
       const skip = (page - 1) * limit;
@@ -335,7 +332,6 @@ class PurchaseService {
       const dataPlan = await DataPlanModel.findOne({
         planId: data.planId, // Use actual OtoBill planId instead of customId
         isActive: true,
-        isVisible: true,
       });
 
       if (!dataPlan) {

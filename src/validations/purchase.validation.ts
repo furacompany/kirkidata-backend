@@ -59,6 +59,9 @@ export const dataPlanPricingSchema = Joi.object({
     "number.positive": "Admin price must be positive",
     "any.required": "Admin price is required",
   }),
+  isActive: Joi.boolean().optional().messages({
+    "boolean.base": "isActive must be a boolean value",
+  }),
 })
   .unknown(false)
   .messages({
