@@ -12,7 +12,6 @@ export interface IDataPlan extends Document {
   originalPrice?: number; // Price from OtoBill (optional during sync)
   adminPrice: number; // Price set by admin (required for operations)
   isActive: boolean;
-  isVisible: boolean;
   lastSynced: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -70,10 +69,6 @@ const dataPlanSchema = new Schema<IDataPlan>(
       type: Boolean,
       default: true,
     },
-    isVisible: {
-      type: Boolean,
-      default: true,
-    },
     lastSynced: {
       type: Date,
       default: Date.now,
@@ -91,7 +86,6 @@ dataPlanSchema.index({ planId: 1 });
 dataPlanSchema.index({ networkName: 1 });
 dataPlanSchema.index({ planType: 1 });
 dataPlanSchema.index({ isActive: 1 });
-dataPlanSchema.index({ isVisible: 1 });
 dataPlanSchema.index({ lastSynced: -1 });
 
 export default mongoose.model<IDataPlan>("DataPlan", dataPlanSchema);

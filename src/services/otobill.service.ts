@@ -77,7 +77,6 @@ class OtoBillService {
       const query: any = {
         networkName,
         isActive: true,
-        isVisible: true,
       };
 
       if (planType) {
@@ -132,7 +131,6 @@ class OtoBillService {
       const types = await DataPlanModel.distinct("planType", {
         networkName,
         isActive: true,
-        isVisible: true,
       });
 
       return types;
@@ -154,7 +152,6 @@ class OtoBillService {
         networkName,
         planType,
         isActive: true,
-        isVisible: true,
       };
 
       const skip = (page - 1) * limit;
@@ -214,80 +211,240 @@ class OtoBillService {
       let totalCreated = 0;
       let totalUpdated = 0;
       let totalSkipped = 0;
+      let totalDeactivated = 0;
+
+      // Get all current plans to track which ones are no longer available
+      const allCurrentPlans = await DataPlanModel.find({});
+      const currentPlanIds = new Set(
+        allCurrentPlans.map((plan) => plan.otobillId)
+      );
+      const syncedPlanIds = new Set<string>();
 
       for (const network of networks) {
         if (!network.isActive) continue;
 
+        logger.info(`Syncing data plans for network: ${network.name}`);
+
         try {
-          // Get ALL data plans for this network by using a very high limit
-          // This ensures we get all 78+ plans instead of just the first 20
-          const dataPlans = await otobillAPI.getDataPlans(
-            network.name,
-            undefined,
-            1,
-            1000
+          // Get all plan types for this network first
+          const planTypes = await otobillAPI.getDataPlanTypes(network.name);
+          logger.info(
+            `Found ${planTypes.length} plan types for ${
+              network.name
+            }: ${planTypes.join(", ")}`
           );
 
-          for (const plan of dataPlans.plans) {
+          // Fetch plans for each type to ensure we get all plans
+          for (const planType of planTypes) {
             try {
-              // Check if plan already exists
-              const existingPlan = await DataPlanModel.findOne({
-                otobillId: plan.id,
-              });
+              logger.info(`Fetching ${planType} plans for ${network.name}`);
 
-              if (existingPlan) {
-                // Update existing plan
-                existingPlan.name = plan.name;
-                existingPlan.planType = plan.planType;
-                existingPlan.validityDays = plan.validityDays;
-                existingPlan.originalPrice = plan.price; // Use the new 'price' field
-                // Don't update adminPrice - let admin keep their custom pricing
-                existingPlan.lastSynced = new Date();
+              // Get ALL data plans for this network and type
+              const dataPlans = await otobillAPI.getDataPlansByType(
+                network.name,
+                planType,
+                1,
+                1000 // High limit to get all plans
+              );
 
-                await existingPlan.save();
-                totalUpdated++;
-              } else {
-                // Create new plan
-                const customId = `PLAN_${Date.now()}_${Math.random()
-                  .toString(36)
-                  .substr(2, 9)}`;
+              logger.info(
+                `Found ${dataPlans.plans.length} ${planType} plans for ${network.name}`
+              );
 
-                const newPlan = new DataPlanModel({
-                  customId,
-                  otobillId: plan.id,
-                  planId: plan.planId,
-                  name: plan.name,
-                  networkName: plan.networkName,
-                  planType: plan.planType,
-                  validityDays: plan.validityDays,
-                  originalPrice: plan.price, // Use the new 'price' field
-                  adminPrice: plan.price, // Set admin price same as OtoBill price initially
-                  isActive: true,
-                  isVisible: true,
-                  lastSynced: new Date(),
-                });
+              for (const plan of dataPlans.plans) {
+                try {
+                  // Check if plan already exists
+                  const existingPlan = await DataPlanModel.findOne({
+                    otobillId: plan.id,
+                  });
 
-                await newPlan.save();
-                totalCreated++;
+                  if (existingPlan) {
+                    // Update existing plan
+                    existingPlan.name = plan.name;
+                    existingPlan.planType = plan.planType;
+                    existingPlan.validityDays = plan.validityDays;
+
+                    // Store the old original price for comparison
+                    const oldOriginalPrice = existingPlan.originalPrice;
+
+                    // Update originalPrice if it has changed from OtoBill
+                    if (existingPlan.originalPrice !== plan.price) {
+                      existingPlan.originalPrice = plan.price;
+
+                      // If admin hasn't set a custom price (adminPrice equals old originalPrice),
+                      // update adminPrice to match new OtoBill price
+                      if (existingPlan.adminPrice === oldOriginalPrice) {
+                        existingPlan.adminPrice = plan.price;
+                      }
+                    }
+
+                    // Ensure the plan is active since it's available from OtoBill
+                    existingPlan.isActive = true;
+                    existingPlan.lastSynced = new Date();
+
+                    await existingPlan.save();
+                    totalUpdated++;
+                  } else {
+                    // Create new plan
+                    const customId = `PLAN_${Date.now()}_${Math.random()
+                      .toString(36)
+                      .substr(2, 9)}`;
+
+                    const newPlan = new DataPlanModel({
+                      customId,
+                      otobillId: plan.id,
+                      planId: plan.planId,
+                      name: plan.name,
+                      networkName: plan.networkName,
+                      planType: plan.planType,
+                      validityDays: plan.validityDays,
+                      originalPrice: plan.price,
+                      adminPrice: plan.price, // Set admin price same as OtoBill price initially
+                      isActive: true, // Set to active by default
+                      lastSynced: new Date(),
+                    });
+
+                    await newPlan.save();
+                    totalCreated++;
+                  }
+
+                  syncedPlanIds.add(plan.id);
+                  totalSynced++;
+                } catch (planError) {
+                  logger.error(
+                    `Failed to sync plan ${plan.planId}:`,
+                    planError
+                  );
+                  totalSkipped++;
+                }
               }
-
-              totalSynced++;
-            } catch (planError) {
-              logger.error(`Failed to sync plan ${plan.planId}:`, planError);
-              totalSkipped++;
+            } catch (planTypeError) {
+              logger.error(
+                `Failed to sync plan type ${planType} for network ${network.name}:`,
+                planTypeError
+              );
             }
+          }
+
+          // Fallback: Also fetch all plans without type filtering to catch any missed plans
+          try {
+            const allNetworkPlans = await otobillAPI.getDataPlans(
+              network.name,
+              undefined,
+              1,
+              1000
+            );
+
+            for (const plan of allNetworkPlans.plans) {
+              // Only process if we haven't already synced this plan
+              if (!syncedPlanIds.has(plan.id)) {
+                try {
+                  // Check if plan already exists
+                  const existingPlan = await DataPlanModel.findOne({
+                    otobillId: plan.id,
+                  });
+
+                  if (existingPlan) {
+                    // Update existing plan
+                    existingPlan.name = plan.name;
+                    existingPlan.planType = plan.planType;
+                    existingPlan.validityDays = plan.validityDays;
+
+                    // Store the old original price for comparison
+                    const oldOriginalPrice = existingPlan.originalPrice;
+
+                    // Update originalPrice if it has changed from OtoBill
+                    if (existingPlan.originalPrice !== plan.price) {
+                      existingPlan.originalPrice = plan.price;
+
+                      // If admin hasn't set a custom price (adminPrice equals old originalPrice),
+                      // update adminPrice to match new OtoBill price
+                      if (existingPlan.adminPrice === oldOriginalPrice) {
+                        existingPlan.adminPrice = plan.price;
+                      }
+                    }
+
+                    // Ensure the plan is active since it's available from OtoBill
+                    existingPlan.isActive = true;
+                    existingPlan.lastSynced = new Date();
+
+                    await existingPlan.save();
+                    totalUpdated++;
+                  } else {
+                    // Create new plan
+                    const customId = `PLAN_${Date.now()}_${Math.random()
+                      .toString(36)
+                      .substr(2, 9)}`;
+
+                    const newPlan = new DataPlanModel({
+                      customId,
+                      otobillId: plan.id,
+                      planId: plan.planId,
+                      name: plan.name,
+                      networkName: plan.networkName,
+                      planType: plan.planType,
+                      validityDays: plan.validityDays,
+                      originalPrice: plan.price,
+                      adminPrice: plan.price, // Set admin price same as OtoBill price initially
+                      isActive: true, // Set to active by default
+                      lastSynced: new Date(),
+                    });
+
+                    await newPlan.save();
+                    totalCreated++;
+                  }
+
+                  syncedPlanIds.add(plan.id);
+                  totalSynced++;
+                } catch (planError) {
+                  logger.error(
+                    `Failed to sync fallback plan ${plan.planId}:`,
+                    planError
+                  );
+                  totalSkipped++;
+                }
+              }
+            }
+          } catch (fallbackError) {
+            logger.error(
+              `Failed to sync fallback plans for network ${network.name}:`,
+              fallbackError
+            );
           }
         } catch (networkError) {
           logger.error(`Failed to sync network ${network.name}:`, networkError);
         }
       }
 
+      // Deactivate plans that are no longer available from OtoBill
+      for (const planId of currentPlanIds) {
+        if (!syncedPlanIds.has(planId)) {
+          try {
+            await DataPlanModel.updateOne(
+              { otobillId: planId },
+              {
+                isActive: false,
+                lastSynced: new Date(),
+              }
+            );
+            totalDeactivated++;
+          } catch (error) {
+            logger.error(`Failed to deactivate plan ${planId}:`, error);
+          }
+        }
+      }
+
+      logger.info(
+        `Data plans sync completed. Total synced: ${totalSynced}, Created: ${totalCreated}, Updated: ${totalUpdated}, Deactivated: ${totalDeactivated}, Skipped: ${totalSkipped}`
+      );
+
       return {
         totalSynced,
         totalCreated,
         totalUpdated,
         totalSkipped,
-        message: `Data plans sync completed. Created: ${totalCreated}, Updated: ${totalUpdated}, Skipped: ${totalSkipped}`,
+        totalDeactivated,
+        message: `Data plans sync completed. Created: ${totalCreated}, Updated: ${totalUpdated}, Deactivated: ${totalDeactivated}, Skipped: ${totalSkipped}`,
       };
     } catch (error) {
       logger.error("Failed to sync data plans:", error);

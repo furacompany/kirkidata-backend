@@ -242,6 +242,12 @@ class OtoBillController {
       }
 
       dataPlan.adminPrice = validatedData.adminPrice;
+
+      // Update isActive if provided
+      if (validatedData.isActive !== undefined) {
+        dataPlan.isActive = validatedData.isActive;
+      }
+
       await dataPlan.save();
 
       res.status(HttpStatus.OK).json({
@@ -254,6 +260,7 @@ class OtoBillController {
           originalPrice: dataPlan.originalPrice || 0, // Handle undefined case
           adminPrice: dataPlan.adminPrice,
           profit: dataPlan.adminPrice - (dataPlan.originalPrice || 0), // Handle undefined case
+          isActive: dataPlan.isActive,
         },
       });
     } catch (error) {
@@ -303,7 +310,7 @@ class OtoBillController {
     try {
       const { networkName, planType, page = 1, limit = 20 } = req.query;
 
-      const query: any = { isActive: true, isVisible: true };
+      const query: any = { isActive: true };
       if (networkName) query.networkName = networkName;
       if (planType) query.planType = planType;
 
