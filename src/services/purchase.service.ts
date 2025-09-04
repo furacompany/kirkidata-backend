@@ -242,7 +242,7 @@ class PurchaseService {
       user.wallet -= totalCost;
       await user.save();
 
-      // Create transaction record
+      // Create transaction record (profit will be calculated after OtoBill response)
       const transaction = new TransactionModel({
         userId,
         type: "airtime",
@@ -255,7 +255,7 @@ class PurchaseService {
         description: `${data.networkName} airtime purchase for ${data.phoneNumber}`,
         networkName: data.networkName,
         phoneNumber: data.phoneNumber,
-        profit: airtime.adminPrice, // Profit is the markup
+        profit: 0, // Will be calculated after OtoBill response
       });
 
       await transaction.save();
@@ -268,9 +268,15 @@ class PurchaseService {
           amount: data.amount,
         });
 
+        // Calculate profit: User paid totalCost, OtoBill charged otobillResponse.amount
+        // Profit = totalCost - otobillResponse.amount
+        const actualOtoBillCost = otobillResponse.amount;
+        const profit = totalCost - actualOtoBillCost;
+
         // Update transaction with OtoBill response
         transaction.status = "completed";
         transaction.otobillRef = otobillResponse.topupmateRef;
+        transaction.profit = Math.max(0, profit); // Ensure profit is not negative
         if (!transaction.metadata) {
           transaction.metadata = {};
         }
@@ -278,6 +284,8 @@ class PurchaseService {
           otobillResponse.transactionId;
         transaction.metadata.otobillStatus = "successful";
         transaction.metadata.otobillResponse = otobillResponse;
+        transaction.metadata.actualOtoBillCost = actualOtoBillCost;
+        transaction.metadata.calculatedProfit = profit;
 
         await transaction.save();
 
@@ -287,6 +295,8 @@ class PurchaseService {
           amount: data.amount,
           markup: airtime.adminPrice,
           totalCost,
+          actualOtoBillCost,
+          profit: transaction.profit,
           status: "completed",
           description: transaction.description,
           networkName: data.networkName,
