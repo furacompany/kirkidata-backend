@@ -5,6 +5,7 @@ import adminRoutes from "./admin.routes";
 import virtualAccountRoutes from "./virtualAccount.routes";
 import purchaseRoutes from "./purchase.routes";
 import otobillRoutes from "./otobill.routes";
+import transactionRoutes from "./transaction.routes";
 
 const router = Router();
 
@@ -14,5 +15,6 @@ router.use("/admins", adminRoutes);
 router.use("/virtual-accounts", virtualAccountRoutes);
 router.use("/purchases", purchaseRoutes);
 router.use("/otobill", otobillRoutes);
+router.use("/transactions", transactionRoutes);
 
 export default router;
