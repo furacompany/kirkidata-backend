@@ -360,42 +360,6 @@ class TransactionController {
         },
       ]);
 
-      // Get daily transaction trends (last 30 days if no date filter)
-      const trendStartDate =
-        validatedFilters.startDate ||
-        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const trendEndDate = validatedFilters.endDate || new Date();
-
-      const dailyTrends = await TransactionModel.aggregate([
-        {
-          $match: {
-            createdAt: {
-              $gte: trendStartDate,
-              $lte: trendEndDate,
-            },
-            status: "completed",
-          },
-        },
-        {
-          $group: {
-            _id: {
-              year: { $year: "$createdAt" },
-              month: { $month: "$createdAt" },
-              day: { $dayOfMonth: "$createdAt" },
-            },
-            count: { $sum: 1 },
-            totalAmount: { $sum: "$amount" },
-            totalProfit: { $sum: "$profit" },
-          },
-        },
-        {
-          $sort: { "_id.year": 1, "_id.month": 1, "_id.day": 1 },
-        },
-        {
-          $limit: 30, // Limit to last 30 days
-        },
-      ]);
-
       // Format the response
       const stats = {
         overview: {
@@ -421,16 +385,6 @@ class TransactionController {
         breakdown: {
           byStatus: statusBreakdown,
           byType: typeBreakdown,
-        },
-        trends: {
-          daily: dailyTrends.map((trend) => ({
-            date: new Date(trend._id.year, trend._id.month - 1, trend._id.day)
-              .toISOString()
-              .split("T")[0],
-            count: trend.count,
-            totalAmount: trend.totalAmount,
-            totalProfit: trend.totalProfit,
-          })),
         },
         period: {
           startDate: validatedFilters.startDate,
