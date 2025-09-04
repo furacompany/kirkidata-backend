@@ -32,6 +32,8 @@ export interface ITransaction extends Document {
     otobillTransactionId?: string;
     otobillStatus?: string;
     otobillResponse?: any;
+    actualOtoBillCost?: number;
+    calculatedProfit?: number;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -122,6 +124,8 @@ const transactionSchema = new Schema<ITransaction>(
       otobillTransactionId: String,
       otobillStatus: String,
       otobillResponse: Schema.Types.Mixed,
+      actualOtoBillCost: Number,
+      calculatedProfit: Number,
     },
   },
   {

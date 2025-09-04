@@ -50,6 +50,8 @@ interface PopulatedTransaction {
     otobillTransactionId?: string;
     otobillStatus?: string;
     otobillResponse?: any;
+    actualOtoBillCost?: number;
+    calculatedProfit?: number;
   };
   createdAt: Date;
   updatedAt: Date;

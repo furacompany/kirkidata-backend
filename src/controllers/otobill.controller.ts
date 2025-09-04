@@ -308,9 +308,22 @@ class OtoBillController {
     next: NextFunction
   ) {
     try {
-      const { networkName, planType, page = 1, limit = 20 } = req.query;
+      const {
+        networkName,
+        planType,
+        page = 1,
+        limit = 20,
+        includeInactive = false,
+      } = req.query;
 
-      const query: any = { isActive: true };
+      const query: any = {};
+
+      // Only filter by isActive if includeInactive is not true
+      // By default, only show active plans to admins
+      if (includeInactive !== "true") {
+        query.isActive = true;
+      }
+
       if (networkName) query.networkName = networkName;
       if (planType) query.planType = planType;
 
@@ -339,11 +352,25 @@ class OtoBillController {
         lastSynced: plan.lastSynced,
       }));
 
+      // Count active and inactive plans for summary
+      const activeCount = plansWithPricing.filter(
+        (plan) => plan.isActive
+      ).length;
+      const inactiveCount = plansWithPricing.filter(
+        (plan) => !plan.isActive
+      ).length;
+
       res.status(HttpStatus.OK).json({
         success: true,
         message: "Data plans with pricing retrieved successfully",
         data: {
           plans: plansWithPricing,
+          summary: {
+            total: plansWithPricing.length,
+            active: activeCount,
+            inactive: inactiveCount,
+            includeInactive: includeInactive === "true",
+          },
           pagination: {
             page: parseInt(page as string),
             limit: parseInt(limit as string),
