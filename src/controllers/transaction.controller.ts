@@ -258,12 +258,8 @@ class TransactionController {
         }
       }
 
-      // Get total users (users who have made at least one transaction)
-      const totalUsers = await UserModel.countDocuments({
-        _id: {
-          $in: await TransactionModel.distinct("userId", dateFilter),
-        },
-      });
+      // Get total users (all users, not filtered by date)
+      const totalUsers = await UserModel.countDocuments();
 
       // Get total transactions
       const totalTransactions = await TransactionModel.countDocuments(
