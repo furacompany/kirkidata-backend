@@ -85,6 +85,9 @@ router.post("/pin/validate", authenticateUser, (req, res, next) =>
 router.post("/pin/change", authenticateUser, (req, res, next) =>
   authController.changePin(req, res, next)
 );
+router.post("/pin/forgot", authenticateUser, (req, res, next) =>
+  authController.forgotPin(req, res, next)
+);
 
 // Health
 router.get("/health", (req, res, next) =>

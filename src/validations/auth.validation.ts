@@ -158,6 +158,29 @@ export const pinChangeSchema = Joi.object({
     }),
 });
 
+// Forgot PIN validation (requires current password and new PIN)
+export const forgotPinSchema = Joi.object({
+  currentPassword: Joi.string()
+    .min(6)
+    .max(12)
+    .pattern(/^[A-Za-z0-9@$!%*?&]+$/)
+    .required()
+    .messages({
+      "string.min": "Current password must be at least 6 characters long",
+      "string.max": "Current password cannot exceed 12 characters",
+      "string.pattern.base":
+        "Current password can contain letters, numbers, and special characters (@$!%*?&)",
+      "any.required": "Current password is required",
+    }),
+  newPin: Joi.string()
+    .pattern(/^\d{4}$/)
+    .required()
+    .messages({
+      "string.pattern.base": "New PIN must be exactly 4 digits",
+      "any.required": "New PIN is required",
+    }),
+});
+
 // Email verification validation
 export const emailVerificationSchema = Joi.object({
   email: Joi.string().email().required().messages({
@@ -307,4 +330,8 @@ export const validateResendEmailVerification = (data: any) => {
 
 export const validateAdminRegistration = (data: any) => {
   return adminRegistrationSchema.validate(data);
+};
+
+export const validateForgotPin = (data: any) => {
+  return forgotPinSchema.validate(data);
 };
