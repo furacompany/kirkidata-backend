@@ -99,8 +99,6 @@ export class AuthService {
         logger.warn("Failed to send welcome email:", emailError);
       }
 
-
-
       // Generate tokens
       const accessToken = generateAccessToken({
         id: user._id.toString(),
@@ -714,6 +712,68 @@ export class AuthService {
       return { message: "PIN changed successfully" };
     } catch (error) {
       logger.error("PIN change failed:", error);
+      throw error;
+    }
+  }
+
+  // Forgot PIN - Reset PIN using current password
+  async forgotPin(
+    userId: string,
+    currentPassword: string,
+    newPin: string
+  ): Promise<{ message: string }> {
+    try {
+      const user = await UserModel.findById(userId);
+      if (!user) {
+        throw new APIError("User not found", HttpStatus.NOT_FOUND);
+      }
+
+      // Validate new PIN format
+      if (!newPin || typeof newPin !== "string") {
+        throw new APIError("New PIN is required", HttpStatus.BAD_REQUEST);
+      }
+
+      if (!/^\d{4}$/.test(newPin)) {
+        throw new APIError(
+          "PIN must be exactly 4 digits",
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      // Verify current password
+      const isCurrentPasswordValid = await user.comparePassword(
+        currentPassword
+      );
+      if (!isCurrentPasswordValid) {
+        throw new APIError(
+          "Current password is incorrect",
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      // Check if new PIN is same as current PIN
+      const isNewPinSame = await user.comparePin(newPin);
+      if (isNewPinSame) {
+        throw new APIError(
+          "New PIN must be different from current PIN",
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      // Hash the new PIN manually to avoid double-hashing
+      const saltRounds = parseInt(process.env.PIN_BCRYPT_ROUNDS || "10");
+      const hashedNewPin = await bcrypt.hash(newPin, saltRounds);
+
+      // Update PIN directly without triggering pre-save middleware
+      await UserModel.findByIdAndUpdate(userId, {
+        pin: hashedNewPin,
+      });
+
+      logger.info(`PIN reset successfully for user: ${userId} via forgot PIN`);
+
+      return { message: "PIN reset successfully" };
+    } catch (error) {
+      logger.error("Forgot PIN failed:", error);
       throw error;
     }
   }
