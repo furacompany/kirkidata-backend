@@ -1,4 +1,5 @@
 import UserModel from "../models/user.model";
+import TransactionModel from "../models/transaction.model";
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
 import logger from "../utils/logger";
@@ -98,12 +99,12 @@ class UserService {
     }
   }
 
-  // Update user wallet balance
-  async updateWalletBalance(
+  // Manual funding with transaction tracking (admin only)
+  async manualFunding(
     userId: string,
     amount: number,
-    operation: "add" | "subtract",
-    description?: string
+    description?: string,
+    adminId?: string
   ) {
     try {
       const user = await UserModel.findById(userId);
@@ -111,40 +112,53 @@ class UserService {
         throw new APIError("User not found", HttpStatus.NOT_FOUND);
       }
 
-      if (operation === "subtract" && user.wallet < amount) {
-        throw new APIError(
-          "Insufficient wallet balance",
-          HttpStatus.BAD_REQUEST
-        );
-      }
+      // Generate transaction reference automatically
+      const transactionRef = `MANUAL_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
 
-      if (operation === "add") {
-        user.wallet += amount;
-      } else {
-        user.wallet -= amount;
-      }
-
-      // Ensure wallet doesn't go negative
-      if (user.wallet < 0) {
-        user.wallet = 0;
-      }
-
+      // Update user wallet
+      const previousBalance = user.wallet;
+      user.wallet += amount;
       await user.save();
 
+      // Create transaction record
+      const transaction = new TransactionModel({
+        userId: user._id,
+        type: "funding",
+        amount: amount,
+        currency: "NGN",
+        status: "completed",
+        reference: transactionRef,
+        description: description || `Manual funding by admin`,
+        metadata: {
+          fundingType: "manual",
+          adminId: adminId,
+          previousBalance: previousBalance,
+          newBalance: user.wallet,
+          fundingSource: "admin_manual",
+        },
+      });
+
+      await transaction.save();
+
       logger.info(
-        `Wallet balance updated for user ${userId}: ${operation} ${amount}`
+        `Manual funding completed for user ${userId}: +${amount} NGN (Admin: ${adminId})`
       );
 
       return {
         userId: user._id,
+        transactionId: transaction._id,
+        reference: transactionRef,
+        amount: amount,
+        previousBalance: previousBalance,
         newBalance: user.wallet,
-        operation,
-        amount,
-        description,
+        description: description || `Manual funding by admin`,
+        adminId: adminId,
       };
     } catch (error) {
       logger.error(
-        `Failed to update wallet balance for user: ${userId}`,
+        `Failed to process manual funding for user: ${userId}`,
         error
       );
       throw error;

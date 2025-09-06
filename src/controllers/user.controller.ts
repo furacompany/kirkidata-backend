@@ -6,6 +6,7 @@ import {
   userSearchSchema,
   userBulkOperationSchema,
   userStatsSchema,
+  manualFundingSchema,
 } from "../validations/user.validation";
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
@@ -131,44 +132,39 @@ class UserController {
     }
   }
 
-  // Update user wallet balance (admin only)
-  async updateWalletBalance(req: Request, res: Response, next: NextFunction) {
+  // Manual funding with transaction tracking (admin only)
+  async manualFunding(req: Request, res: Response, next: NextFunction) {
     try {
       const { userId } = req.params;
-      const { amount, operation, description } = req.body;
+      const fundingData = req.body;
 
-      if (!userId || !amount || !operation) {
+      if (!userId) {
+        throw new APIError("User ID is required", HttpStatus.BAD_REQUEST);
+      }
+
+      // Validate request body
+      const validatedData = validateSchema(manualFundingSchema, fundingData);
+
+      // Get admin ID from authenticated admin
+      const adminId = req.admin?.id;
+      if (!adminId) {
         throw new APIError(
-          "User ID, amount, and operation are required",
-          HttpStatus.BAD_REQUEST
+          "Admin authentication required",
+          HttpStatus.UNAUTHORIZED
         );
       }
 
-      if (!["add", "subtract"].includes(operation)) {
-        throw new APIError(
-          "Operation must be either add or subtract",
-          HttpStatus.BAD_REQUEST
-        );
-      }
-
-      if (typeof amount !== "number" || amount <= 0) {
-        throw new APIError(
-          "Amount must be a positive number",
-          HttpStatus.BAD_REQUEST
-        );
-      }
-
-      // Update wallet balance
-      const result = await userService.updateWalletBalance(
+      // Process manual funding with transaction tracking
+      const result = await userService.manualFunding(
         userId,
-        amount,
-        operation,
-        description
+        validatedData.amount,
+        validatedData.description,
+        adminId
       );
 
       res.status(HttpStatus.OK).json({
         success: true,
-        message: "Wallet balance updated successfully",
+        message: "Manual funding completed successfully",
         data: result,
       });
     } catch (error) {

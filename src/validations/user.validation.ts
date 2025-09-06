@@ -63,6 +63,19 @@ export const walletOperationSchema = Joi.object({
   }),
 });
 
+// Manual funding validation (admin only)
+export const manualFundingSchema = Joi.object({
+  amount: Joi.number().positive().precision(2).required().messages({
+    "number.base": "Amount must be a number",
+    "number.positive": "Amount must be positive",
+    "number.precision": "Amount can have maximum 2 decimal places",
+    "any.required": "Amount is required",
+  }),
+  description: Joi.string().max(500).optional().messages({
+    "string.max": "Description cannot exceed 500 characters",
+  }),
+});
+
 // User search/filter validation
 export const userSearchSchema = Joi.object({
   search: Joi.string().min(2).max(100).optional().messages({

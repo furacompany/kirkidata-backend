@@ -31,8 +31,8 @@ router.get("/email/:email", authenticateAdmin, (req, res, next) =>
 router.patch("/:userId", authenticateAdmin, (req, res, next) =>
   userController.updateUserProfile(req, res, next)
 );
-router.post("/:userId/wallet", authenticateAdmin, (req, res, next) =>
-  userController.updateWalletBalance(req, res, next)
+router.post("/:userId/fund", authenticateAdmin, (req, res, next) =>
+  userController.manualFunding(req, res, next)
 );
 router.get("/", authenticateAdmin, (req, res, next) =>
   userController.searchUsers(req, res, next)
