@@ -3,20 +3,12 @@ import { HttpStatus } from "../constants/httpStatus.constant";
 import APIError from "../error/APIError";
 import { BankType } from "../constants/banks.constant";
 
-// Create virtual account validation
-export const createVirtualAccountSchema = Joi.object({
-  bank: Joi.string()
-    .valid(...Object.values(BankType))
-    .required()
-    .messages({
-      "any.only": `Bank must be one of: ${Object.values(BankType).join(", ")}`,
-      "any.required": "Bank is required",
-    }),
-})
+// Create virtual account validation (PalmPay)
+export const createVirtualAccountSchema = Joi.object({})
   .unknown(false)
   .messages({
     "object.unknown":
-      "Field '{#label}' is not allowed. Only bank can be specified.",
+      "No fields are required. Virtual account will be created with hardcoded BVN.",
   });
 
 // Upgrade KYC validation
