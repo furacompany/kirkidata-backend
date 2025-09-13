@@ -28,14 +28,12 @@ async function getOldAccounts() {
     new mongoose.Schema({}, { strict: false })
   );
 
-  const oldAccounts = await VirtualAccount.find({ bankId: "9PSB" }).populate(
-    "userId"
-  );
+  const oldAccounts = await VirtualAccount.find({ bankId: "9PSB" });
   console.log(`📊 Found ${oldAccounts.length} old 9PSB accounts`);
 
   // Get unique users
   const uniqueUserIds = [
-    ...new Set(oldAccounts.map((acc) => acc.userId._id.toString())),
+    ...new Set(oldAccounts.map((acc) => acc.userId.toString())),
   ];
   const users = await User.find({ _id: { $in: uniqueUserIds } });
 

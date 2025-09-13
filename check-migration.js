@@ -32,14 +32,12 @@ async function checkMigration() {
     );
 
     // Get all 9PSB accounts
-    const oldAccounts = await VirtualAccount.find({ bankId: "9PSB" }).populate(
-      "userId"
-    );
+    const oldAccounts = await VirtualAccount.find({ bankId: "9PSB" });
     console.log(`📊 Found ${oldAccounts.length} old 9PSB accounts`);
 
     // Get unique users
     const uniqueUserIds = [
-      ...new Set(oldAccounts.map((acc) => acc.userId._id.toString())),
+      ...new Set(oldAccounts.map((acc) => acc.userId.toString())),
     ];
     const users = await User.find({ _id: { $in: uniqueUserIds } });
     console.log(`👥 Found ${users.length} unique users to migrate`);
@@ -54,7 +52,7 @@ async function checkMigration() {
       console.log("\n👥 Users to be migrated:");
       users.forEach((user, index) => {
         const userOldAccounts = oldAccounts.filter(
-          (acc) => acc.userId._id.toString() === user._id.toString()
+          (acc) => acc.userId.toString() === user._id.toString()
         );
         console.log(
           `   ${index + 1}. ${user.firstName} ${user.lastName} (${
