@@ -6,6 +6,8 @@ const { verifyBVN } = require("./dist/services/bvn.service");
 // Load environment variables
 require("dotenv").config();
 
+// Models will be defined after database connection
+
 // Connect to MongoDB
 async function connectDB() {
   try {
@@ -112,7 +114,6 @@ async function createPalmPayAccount(user) {
       "VirtualAccount",
       new mongoose.Schema({}, { strict: false })
     );
-
     await VirtualAccount.create({
       userId: user._id,
       provider: "palmpay",
@@ -186,6 +187,10 @@ async function migrate() {
       );
 
       // Check if user already has a PalmPay account
+      const VirtualAccount = mongoose.model(
+        "VirtualAccount",
+        new mongoose.Schema({}, { strict: false })
+      );
       const existingAccount = await VirtualAccount.findOne({
         userId: user._id,
         provider: "palmpay",
