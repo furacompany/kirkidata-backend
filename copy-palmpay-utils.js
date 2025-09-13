@@ -22,12 +22,40 @@ files.forEach((file) => {
   console.log(`📋 Copied ${file} to dist/utils/palmpay/`);
 });
 
-// Copy the main palmpay.js file to dist/utils/
-const mainPalmpayFile = path.join(__dirname, "dist-utils-palmpay.js");
+// Create the main palmpay.js file in dist/utils/
 const destMainFile = path.join(__dirname, "dist", "utils", "palmpay.js");
+const palmpayMainContent = `// PalmPay SDK utilities for KirkiData backend
+const {
+  sign,
+  rsaVerify,
+  sortParams,
+  HashMap,
+} = require("./palmpay/signatureGeneration");
+const { verifyPalmPayWebhook } = require("./palmpay/signatureVerification");
+const {
+  getPalmPayPrivateKey,
+  getPalmPayPublicKeyForUpload,
+  getPalmPayPublicKey,
+} = require("./palmpay/keyUtils");
 
-fs.copyFileSync(mainPalmpayFile, destMainFile);
-console.log("📋 Copied palmpay.js to dist/utils/");
+module.exports = {
+  // Signature generation
+  sign,
+  rsaVerify,
+  sortParams,
+  HashMap,
+
+  // Signature verification
+  verifyPalmPayWebhook,
+
+  // Key utilities
+  getPalmPayPrivateKey,
+  getPalmPayPublicKeyForUpload,
+  getPalmPayPublicKey,
+};`;
+
+fs.writeFileSync(destMainFile, palmpayMainContent);
+console.log("📋 Created palmpay.js in dist/utils/");
 
 // Copy keys directory if it exists
 const keysSourceDir = path.join(__dirname, "src", "keys");
