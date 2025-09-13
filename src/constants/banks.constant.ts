@@ -1,10 +1,8 @@
 export enum BankType {
-  NINE_PSB = "9PSB",
   PALMPAY = "PALMPAY",
 }
 
 export const BANK_NAMES = {
-  [BankType.NINE_PSB]: "9PSB Bank",
   [BankType.PALMPAY]: "Palmpay Bank",
 } as const;
 

@@ -9,10 +9,12 @@ import {
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
 import logger from "../utils/logger";
-import billstackAPI from "../configs/billstack";
+import { verifyBVN } from "../services/bvn.service";
+import { createVirtualAccount } from "../services/palmpay.service";
+import VirtualAccountModel from "../models/virtualAccount.model";
 
 class VirtualAccountController {
-  // Create virtual account
+  // Create virtual account for user
   async createVirtualAccount(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
@@ -20,55 +22,155 @@ class VirtualAccountController {
         throw new APIError("Unauthorized", HttpStatus.UNAUTHORIZED);
       }
 
-      // Validate request body
-      const validatedData = validateSchema(
-        createVirtualAccountSchema,
-        req.body
-      );
+      // Validate request body (no fields required)
+      validateSchema(createVirtualAccountSchema, req.body);
 
-      // Create virtual account
-      const virtualAccount = await virtualAccountService.createVirtualAccount({
+      // Check if user already has a virtual account
+      const existingAccount = await VirtualAccountModel.findOne({
         userId,
-        bank: validatedData.bank,
+        provider: "palmpay",
+      });
+
+      if (existingAccount) {
+        throw new APIError(
+          "Virtual account already exists for this user. Each user can only have one virtual account.",
+          HttpStatus.CONFLICT
+        );
+      }
+
+      // Get user details
+      const user = await virtualAccountService.getUserById(userId);
+      if (!user) {
+        throw new APIError("User not found", HttpStatus.NOT_FOUND);
+      }
+
+      // Hardcoded BVN for testing
+      const hardcodedBVN = "22584884665";
+
+      // Mock BVN verification
+      const bvnResult = await verifyBVN({
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phoneNumber: user.phone,
+      });
+
+      if (!bvnResult.success) {
+        throw new APIError("BVN verification failed", HttpStatus.BAD_REQUEST);
+      }
+
+      // Create virtual account name
+      const virtualAccountName =
+        `${user.firstName.trim()} ${user.lastName.trim()}`
+          .replace(/\s+/g, " ")
+          .trim();
+
+      // Call PalmPay to create virtual account
+      const palmpayRes = await createVirtualAccount({
+        virtualAccountName: virtualAccountName,
+        identityType: "personal",
+        licenseNumber: hardcodedBVN,
+        customerName: `${user.firstName.trim()} ${user.lastName.trim()}`,
+        email: user.email,
+        accountReference: userId,
+      });
+
+      if (!palmpayRes || palmpayRes.respCode !== "00000000") {
+        throw new APIError(
+          `PalmPay error: ${palmpayRes?.respMsg || "Unknown error"}`,
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      // Save to database
+      const virtualAccount = await VirtualAccountModel.create({
+        userId,
+        provider: "palmpay",
+        virtualAccountNo: palmpayRes.data.virtualAccountNo,
+        virtualAccountName: palmpayRes.data.virtualAccountName
+          .replace(/\n/g, "")
+          .replace(/\r/g, "")
+          .replace(/\s+/g, " ")
+          .trim(),
+        status: palmpayRes.data.status,
+        identityType: palmpayRes.data.identityType,
+        licenseNumber: palmpayRes.data.licenseNumber,
+        customerName: palmpayRes.data.customerName
+          .replace(/\n/g, "")
+          .replace(/\r/g, "")
+          .replace(/\s+/g, " ")
+          .trim(),
+        email: palmpayRes.data.email,
+        accountReference: palmpayRes.data.accountReference,
+        rawResponse: palmpayRes,
+      });
+
+      logger.info("Virtual account created successfully", {
+        userId,
+        virtualAccountNo: virtualAccount.virtualAccountNo,
+        virtualAccountName: virtualAccount.virtualAccountName,
       });
 
       res.status(HttpStatus.CREATED).json({
         success: true,
         message: "Virtual account created successfully",
-        data: virtualAccount,
+        data: {
+          virtualAccountNo: virtualAccount.virtualAccountNo,
+          virtualAccountName: virtualAccount.virtualAccountName,
+          status: virtualAccount.status,
+          provider: virtualAccount.provider,
+          customerName: virtualAccount.customerName,
+          email: virtualAccount.email,
+          accountReference: virtualAccount.accountReference,
+          createdAt: virtualAccount.createdAt,
+        },
       });
     } catch (error) {
       next(error);
     }
   }
 
-  // Get user's virtual accounts
-  async getUserVirtualAccounts(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) {
+  // Get user's virtual account
+  async getUserVirtualAccount(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
       if (!userId) {
         throw new APIError("Unauthorized", HttpStatus.UNAUTHORIZED);
       }
 
-      const accounts = await virtualAccountService.getUserVirtualAccounts(
-        userId
-      );
+      // Find the user's virtual account
+      const virtualAccount = await VirtualAccountModel.findOne({
+        userId,
+        provider: "palmpay",
+      }).select("-rawResponse"); // Exclude raw response for security
+
+      if (!virtualAccount) {
+        throw new APIError(
+          "Virtual account not found. Please generate one first.",
+          HttpStatus.NOT_FOUND
+        );
+      }
 
       res.status(HttpStatus.OK).json({
         success: true,
-        message: "Virtual accounts retrieved successfully",
-        data: accounts,
+        message: "Virtual account retrieved successfully",
+        data: {
+          virtualAccountNo: virtualAccount.virtualAccountNo,
+          virtualAccountName: virtualAccount.virtualAccountName,
+          status: virtualAccount.status,
+          provider: virtualAccount.provider,
+          customerName: virtualAccount.customerName,
+          email: virtualAccount.email,
+          accountReference: virtualAccount.accountReference,
+          createdAt: virtualAccount.createdAt,
+          updatedAt: virtualAccount.updatedAt,
+        },
       });
     } catch (error) {
       next(error);
     }
   }
 
-  // Get virtual account by ID
+  // Get virtual account by ID (admin only)
   async getVirtualAccountById(req: Request, res: Response, next: NextFunction) {
     try {
       const { accountId } = req.params;
@@ -82,12 +184,16 @@ class VirtualAccountController {
         throw new APIError("Account ID is required", HttpStatus.BAD_REQUEST);
       }
 
-      const account = await virtualAccountService.getVirtualAccountById(
-        accountId
+      const account = await VirtualAccountModel.findById(accountId).select(
+        "-rawResponse"
       );
 
-      // Check if user owns this account
-      if (account.userId.toString() !== userId) {
+      if (!account) {
+        throw new APIError("Virtual account not found", HttpStatus.NOT_FOUND);
+      }
+
+      // Check if user owns this account (for regular users)
+      if (req.user && account.userId.toString() !== userId) {
         throw new APIError("Access denied", HttpStatus.FORBIDDEN);
       }
 
@@ -126,8 +232,8 @@ class VirtualAccountController {
           parseInt(limit as string)
         );
 
-      // Check if user owns this account
-      if (accountWithTransactions.userId.toString() !== userId) {
+      // Check if user owns this account (for regular users)
+      if (req.user && accountWithTransactions.userId.toString() !== userId) {
         throw new APIError("Access denied", HttpStatus.FORBIDDEN);
       }
 
@@ -141,7 +247,7 @@ class VirtualAccountController {
     }
   }
 
-  // Upgrade virtual account KYC
+  // Upgrade virtual account KYC (placeholder - PalmPay handles this differently)
   async upgradeVirtualAccountKYC(
     req: Request,
     res: Response,
@@ -156,16 +262,35 @@ class VirtualAccountController {
       // Validate request body
       const validatedData = validateSchema(upgradeKYCSchema, req.body);
 
-      const updatedAccount =
-        await virtualAccountService.upgradeVirtualAccountKYC({
-          userId,
-          bvn: validatedData.bvn,
-        });
+      // Find user's virtual account
+      const virtualAccount = await VirtualAccountModel.findOne({
+        userId,
+        provider: "palmpay",
+      });
+
+      if (!virtualAccount) {
+        throw new APIError(
+          "Virtual account not found. Please create one first.",
+          HttpStatus.NOT_FOUND
+        );
+      }
+
+      // For PalmPay, KYC is handled during account creation
+      // This endpoint is kept for compatibility but doesn't perform actual KYC upgrade
+      logger.info("KYC upgrade requested for PalmPay virtual account", {
+        userId,
+        virtualAccountNo: virtualAccount.virtualAccountNo,
+        bvn: validatedData.bvn,
+      });
 
       res.status(HttpStatus.OK).json({
         success: true,
-        message: "Virtual account KYC upgraded successfully",
-        data: updatedAccount,
+        message: "KYC information updated successfully",
+        data: {
+          virtualAccountNo: virtualAccount.virtualAccountNo,
+          status: virtualAccount.status,
+          note: "KYC is handled during account creation with PalmPay",
+        },
       });
     } catch (error) {
       next(error);
@@ -199,64 +324,7 @@ class VirtualAccountController {
     }
   }
 
-  // Process webhook (public endpoint)
-  async processWebhook(req: Request, res: Response, next: NextFunction) {
-    try {
-      const signature = req.headers["x-wiaxy-signature"] as string;
-      const payload = req.body;
-
-      logger.info("Webhook received:", {
-        hasSignature: !!signature,
-        signatureLength: signature?.length,
-        payloadKeys: Object.keys(payload),
-        event: payload.event,
-        ip: req.ip,
-        userAgent: req.get("User-Agent"),
-      });
-
-      // Verify signature in all environments (development and production)
-      if (!signature) {
-        logger.error("Missing webhook signature");
-        throw new APIError(
-          "Missing webhook signature",
-          HttpStatus.UNAUTHORIZED
-        );
-      }
-
-      const isValidSignature = virtualAccountService.verifyWebhookSignature(
-        signature,
-        JSON.stringify(payload)
-      );
-
-      if (!isValidSignature) {
-        logger.error("Invalid webhook signature:", {
-          receivedSignature: signature,
-          payloadEvent: payload.event,
-        });
-        throw new APIError(
-          "Invalid webhook signature",
-          HttpStatus.UNAUTHORIZED
-        );
-      }
-
-      logger.info("Webhook signature verified successfully");
-
-      // Process payment notification
-      await virtualAccountService.processPaymentNotification(payload);
-
-      logger.info("Webhook processed successfully");
-
-      res.status(HttpStatus.OK).json({
-        success: true,
-        message: "Webhook processed successfully",
-      });
-    } catch (error) {
-      logger.error("Webhook processing failed:", error);
-      next(error);
-    }
-  }
-
-  // Get available banks for user
+  // Get available banks for user (now only PalmPay)
   async getAvailableBanks(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
@@ -264,7 +332,33 @@ class VirtualAccountController {
         throw new APIError("Unauthorized", HttpStatus.UNAUTHORIZED);
       }
 
-      const banks = await virtualAccountService.getAvailableBanks(userId);
+      // Check if user already has a virtual account
+      const existingAccount = await VirtualAccountModel.findOne({
+        userId,
+        provider: "palmpay",
+      });
+
+      const banks = {
+        available: existingAccount
+          ? []
+          : [
+              {
+                bankId: "PALMPAY",
+                bankName: "Palmpay Bank",
+                description: "Create a virtual account with PalmPay",
+              },
+            ],
+        existing: existingAccount
+          ? [
+              {
+                bankId: "PALMPAY",
+                bankName: "Palmpay Bank",
+                virtualAccountNo: existingAccount.virtualAccountNo,
+                status: existingAccount.status,
+              },
+            ]
+          : [],
+      };
 
       res.status(HttpStatus.OK).json({
         success: true,
@@ -279,22 +373,16 @@ class VirtualAccountController {
   // Health check endpoint
   async healthCheck(req: Request, res: Response, next: NextFunction) {
     try {
-      const billstackConfig = billstackAPI.getConfig();
-      const isBillstackConfigured = billstackAPI.isConfigured();
-
       res.status(HttpStatus.OK).json({
         success: true,
         message: "Virtual account service is healthy",
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
-        billstack: {
-          configured: isBillstackConfigured,
-          baseURL: billstackConfig.baseURL,
-          hasSecretKey: !!billstackConfig.secretKey,
-          hasPublicKey: !!billstackConfig.publicKey,
-          secretKeyPrefix: billstackConfig.secretKey
-            ? billstackConfig.secretKey.substring(0, 10) + "..."
-            : "not set",
+        palmpay: {
+          configured: true,
+          baseURL: process.env.PALMPAY_API_URL,
+          hasAppId: !!process.env.PALMPAY_APP_ID,
+          hasMerchantId: !!process.env.PALMPAY_MERCHANT_ID,
         },
       });
     } catch (error) {

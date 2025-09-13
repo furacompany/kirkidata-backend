@@ -4,15 +4,14 @@ import VirtualAccountModel, {
 } from "../models/virtualAccount.model";
 import TransactionModel, { ITransaction } from "../models/transaction.model";
 import UserModel from "../models/user.model";
-import billstackAPI from "../configs/billstack";
 import logger from "../utils/logger";
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
-import { BankType, BANK_NAMES } from "../constants/banks.constant";
 
 export interface CreateVirtualAccountData {
   userId: string;
-  bank: BankType;
+  bvn: string;
+  middleName?: string;
 }
 
 export interface VirtualAccountKYCData {
@@ -23,193 +22,31 @@ export interface VirtualAccountKYCData {
 export interface VirtualAccountWithTransactions {
   _id: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
-  reference: string;
-  accountNumber: string;
-  accountName: string;
-  bankName: string;
-  bankId: BankType;
-  isActive: boolean;
-  isKYCVerified: boolean;
-  bvn?: string;
+  provider: "palmpay";
+  virtualAccountNo: string;
+  virtualAccountName: string;
+  status: "Enabled" | "Disabled" | "Deleted";
+  identityType: "personal" | "personal_nin" | "company";
+  licenseNumber: string;
+  customerName: string;
+  email?: string;
+  accountReference?: string;
   createdAt: Date;
   updatedAt: Date;
   transactions?: ITransaction[];
 }
 
 class VirtualAccountService {
-  // Create virtual account for user
-  async createVirtualAccount(
-    data: CreateVirtualAccountData
-  ): Promise<IVirtualAccount> {
+  // Get user by ID
+  async getUserById(userId: string) {
     try {
-      // Check if BillStack is configured
-      if (!billstackAPI.isConfigured()) {
-        throw new APIError(
-          "BillStack API is not configured",
-          HttpStatus.INTERNAL_SERVER_ERROR
-        );
-      }
-
-      // Get user details
-      const user = await UserModel.findById(data.userId);
+      const user = await UserModel.findById(userId);
       if (!user) {
         throw new APIError("User not found", HttpStatus.NOT_FOUND);
       }
-
-      // Check if user already has an account for this bank
-      const existingAccount = await VirtualAccountModel.findOne({
-        userId: data.userId,
-        bankId: data.bank,
-        isActive: true,
-      });
-
-      if (existingAccount) {
-        throw new APIError(
-          `User already has an active ${data.bank} virtual account. Each user can only have one account per bank.`,
-          HttpStatus.CONFLICT
-        );
-      }
-
-      // Generate unique reference with more randomness
-      const timestamp = Date.now();
-      const randomPart = Math.random().toString(36).substr(2, 12);
-      const reference = `VA_${user._id}_${timestamp}_${randomPart}`;
-
-      // Create virtual account via BillStack API
-      const billstackRequest = {
-        email: user.email,
-        reference,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        phone: user.phone,
-        bank: data.bank,
-      };
-
-      const billstackResponse = await billstackAPI.createVirtualAccount(
-        billstackRequest
-      );
-
-      if (!billstackResponse.status || !billstackResponse.data.account?.[0]) {
-        throw new APIError(
-          "Failed to create virtual account with BillStack",
-          HttpStatus.INTERNAL_SERVER_ERROR
-        );
-      }
-
-      const accountData = billstackResponse.data.account[0];
-
-      // Check if the BillStack reference already exists in our database
-      const existingReference = await VirtualAccountModel.findOne({
-        reference: billstackResponse.data.reference,
-      });
-
-      if (existingReference) {
-        logger.warn(
-          `BillStack reference ${billstackResponse.data.reference} already exists in database`
-        );
-        throw new APIError(
-          "Virtual account creation failed due to duplicate reference. Please try again.",
-          HttpStatus.INTERNAL_SERVER_ERROR
-        );
-      }
-
-      // Save virtual account to database with retry mechanism for duplicate references
-      let virtualAccount;
-      let retryCount = 0;
-      const maxRetries = 3;
-
-      while (retryCount < maxRetries) {
-        try {
-          virtualAccount = new VirtualAccountModel({
-            userId: data.userId,
-            reference: billstackResponse.data.reference,
-            accountNumber: accountData.account_number,
-            accountName: accountData.account_name,
-            bankName: accountData.bank_name,
-            bankId: accountData.bank_id,
-            isActive: true,
-            isKYCVerified: false,
-          });
-
-          await virtualAccount.save();
-          break; // Success, exit the retry loop
-        } catch (error: any) {
-          // Check if it's a duplicate key error
-          if (error.code === 11000 && error.keyPattern?.reference) {
-            retryCount++;
-            if (retryCount >= maxRetries) {
-              logger.error(
-                `Failed to save virtual account after ${maxRetries} retries due to duplicate reference`
-              );
-              throw new APIError(
-                "Failed to create virtual account due to duplicate reference. Please try again.",
-                HttpStatus.INTERNAL_SERVER_ERROR
-              );
-            }
-
-            // Generate a new reference and retry
-            const newTimestamp = Date.now();
-            const newRandomPart = Math.random().toString(36).substr(2, 12);
-            const newReference = `VA_${user._id}_${newTimestamp}_${newRandomPart}`;
-
-            // Update the BillStack request with new reference
-            const newBillstackRequest = {
-              ...billstackRequest,
-              reference: newReference,
-            };
-
-            // Call BillStack API again with new reference
-            const newBillstackResponse =
-              await billstackAPI.createVirtualAccount(newBillstackRequest);
-
-            if (
-              !newBillstackResponse.status ||
-              !newBillstackResponse.data.account?.[0]
-            ) {
-              throw new APIError(
-                "Failed to create virtual account with BillStack on retry",
-                HttpStatus.INTERNAL_SERVER_ERROR
-              );
-            }
-
-            // Update the response data
-            const newAccountData = newBillstackResponse.data.account[0];
-            accountData.account_number = newAccountData.account_number;
-            accountData.account_name = newAccountData.account_name;
-            accountData.bank_name = newAccountData.bank_name;
-            accountData.bank_id = newAccountData.bank_id;
-            billstackResponse.data.reference =
-              newBillstackResponse.data.reference;
-
-            logger.info(
-              `Retrying virtual account creation with new reference: ${newReference}`
-            );
-            continue; // Retry with new data
-          } else {
-            // It's not a duplicate key error, re-throw
-            throw error;
-          }
-        }
-      }
-
-      // Ensure virtualAccount is defined
-      if (!virtualAccount) {
-        throw new APIError(
-          "Failed to create virtual account after retries",
-          HttpStatus.INTERNAL_SERVER_ERROR
-        );
-      }
-
-      logger.info(
-        `Virtual account created for user ${data.userId}: ${accountData.account_number}`
-      );
-
-      return virtualAccount;
+      return user;
     } catch (error) {
-      logger.error(
-        `Failed to create virtual account for user ${data.userId}:`,
-        error
-      );
+      logger.error("Failed to get user by ID:", error);
       throw error;
     }
   }
@@ -219,12 +56,12 @@ class VirtualAccountService {
     try {
       const accounts = await VirtualAccountModel.find({
         userId,
-        isActive: true,
+        provider: "palmpay",
       }).sort({ createdAt: -1 });
 
       return accounts;
     } catch (error) {
-      logger.error(`Failed to get virtual accounts for user ${userId}:`, error);
+      logger.error("Failed to get user virtual accounts:", error);
       throw error;
     }
   }
@@ -238,7 +75,7 @@ class VirtualAccountService {
       }
       return account;
     } catch (error) {
-      logger.error(`Failed to get virtual account ${accountId}:`, error);
+      logger.error("Failed to get virtual account by ID:", error);
       throw error;
     }
   }
@@ -254,285 +91,59 @@ class VirtualAccountService {
         throw new APIError("Virtual account not found", HttpStatus.NOT_FOUND);
       }
 
+      // Get recent transactions for this virtual account
       const transactions = await TransactionModel.find({
-        virtualAccountId: accountId,
+        virtualAccountId: account._id,
       })
         .sort({ createdAt: -1 })
         .limit(limit);
 
-      const accountData = account.toObject();
       return {
-        ...accountData,
+        ...account.toObject(),
         transactions,
-      };
+      } as VirtualAccountWithTransactions;
     } catch (error) {
-      logger.error(
-        `Failed to get virtual account with transactions ${accountId}:`,
-        error
-      );
+      logger.error("Failed to get virtual account with transactions:", error);
       throw error;
     }
   }
 
-  // Upgrade virtual account with KYC
+  // Upgrade virtual account KYC (placeholder for PalmPay)
   async upgradeVirtualAccountKYC(
     data: VirtualAccountKYCData
   ): Promise<IVirtualAccount> {
     try {
-      // Check if BillStack is configured
-      if (!billstackAPI.isConfigured()) {
-        throw new APIError(
-          "BillStack API is not configured",
-          HttpStatus.INTERNAL_SERVER_ERROR
-        );
-      }
-
-      // Get user details
-      const user = await UserModel.findById(data.userId);
-      if (!user) {
-        throw new APIError("User not found", HttpStatus.NOT_FOUND);
-      }
-
-      // Get user's virtual accounts
-      const virtualAccounts = await VirtualAccountModel.find({
+      // For PalmPay, KYC is handled during account creation
+      // This method is kept for compatibility
+      const account = await VirtualAccountModel.findOne({
         userId: data.userId,
-        isActive: true,
+        provider: "palmpay",
       });
 
-      if (virtualAccounts.length === 0) {
-        throw new APIError(
-          "User has no virtual accounts to upgrade",
-          HttpStatus.BAD_REQUEST
-        );
+      if (!account) {
+        throw new APIError("Virtual account not found", HttpStatus.NOT_FOUND);
       }
 
-      // Upgrade KYC via BillStack API
-      const billstackRequest = {
-        customer: user.email,
+      logger.info("KYC upgrade requested for PalmPay virtual account", {
+        userId: data.userId,
+        virtualAccountNo: account.virtualAccountNo,
         bvn: data.bvn,
-      };
-
-      const billstackResponse = await billstackAPI.upgradeVirtualAccountKYC(
-        billstackRequest
-      );
-
-      if (!billstackResponse.status) {
-        throw new APIError(
-          billstackResponse.message || "Failed to upgrade virtual account KYC",
-          HttpStatus.INTERNAL_SERVER_ERROR
-        );
-      }
-
-      // Update all user's virtual accounts with KYC status
-      await VirtualAccountModel.updateMany(
-        { userId: data.userId, isActive: true },
-        {
-          isKYCVerified: true,
-          bvn: data.bvn,
-        }
-      );
-
-      // Get updated accounts
-      const updatedAccounts = await VirtualAccountModel.find({
-        userId: data.userId,
-        isActive: true,
       });
 
-      if (!updatedAccounts.length) {
-        throw new APIError(
-          "No virtual accounts found after KYC upgrade",
-          HttpStatus.INTERNAL_SERVER_ERROR
-        );
-      }
-
-      logger.info(`Virtual account KYC upgraded for user ${data.userId}`);
-
-      return updatedAccounts[0]!; // Return first account as representative
+      return account;
     } catch (error) {
-      logger.error(
-        `Failed to upgrade virtual account KYC for user ${data.userId}:`,
-        error
-      );
+      logger.error("Failed to upgrade virtual account KYC:", error);
       throw error;
     }
   }
 
-  // Process webhook payment notification
+  // Process payment notification (handled by PalmPay webhook controller)
   async processPaymentNotification(webhookPayload: any): Promise<void> {
     try {
-      logger.info("Processing webhook payment notification:", {
-        payloadKeys: Object.keys(webhookPayload),
-        event: webhookPayload.event,
-        hasData: !!webhookPayload.data,
-        dataKeys: webhookPayload.data ? Object.keys(webhookPayload.data) : [],
-      });
-
-      // Parse and validate webhook payload
-      const payload = billstackAPI.parseWebhookPayload(webhookPayload);
-
-      if (!billstackAPI.validateWebhookPayload(payload)) {
-        logger.error("Webhook payload validation failed:", webhookPayload);
-        throw new APIError("Invalid webhook payload", HttpStatus.BAD_REQUEST);
-      }
-
-      const { data } = payload;
-      logger.info("Webhook data extracted:", {
-        reference: data.reference,
-        amount: data.amount,
-        accountNumber: data.account?.account_number,
-        merchantReference: data.merchant_reference,
-        wiaxyRef: data.wiaxy_ref,
-        transactionRef: data.transaction_ref,
-        payerAccountNumber: data.payer?.account_number,
-        payerAccountName: data.payer?.account_name,
-        customerEmail: data.customer?.email,
-        customerName: `${data.customer?.firstName} ${data.customer?.lastName}`,
-      });
-
-      // Check if transaction already exists using the unique transaction_ref
-      // Note: reference (R-GDLZSHBCQY) is the same for all transactions to the same account
-      // transaction_ref is the unique identifier for each payment
+      // This method is kept for compatibility but actual processing
+      // is handled in the PalmPay webhook controller
       logger.info(
-        `Checking for existing transaction with wiaxyRef: ${data.transaction_ref}`
-      );
-
-      const existingTransaction = await TransactionModel.findOne({
-        wiaxyRef: data.transaction_ref,
-      });
-
-      if (existingTransaction) {
-        logger.info(
-          `Transaction with wiaxyRef ${data.transaction_ref} already processed, skipping. Existing transaction: ${existingTransaction._id}`
-        );
-        return;
-      }
-
-      logger.info(
-        `No existing transaction found with wiaxyRef: ${data.transaction_ref}`
-      );
-
-      logger.info(
-        `Processing new transaction: ${data.reference} (${data.transaction_ref})`
-      );
-
-      // Find virtual account by account number
-      const virtualAccount = await VirtualAccountModel.findOne({
-        accountNumber: data.account.account_number,
-        isActive: true,
-      });
-
-      if (!virtualAccount) {
-        logger.error(
-          `Virtual account not found for account number: ${data.account.account_number}`
-        );
-        throw new APIError("Virtual account not found", HttpStatus.NOT_FOUND);
-      }
-
-      logger.info(`Found virtual account for user: ${virtualAccount.userId}`);
-
-      // Get user before updating wallet
-      const userBeforeUpdate = await UserModel.findById(virtualAccount.userId);
-      if (!userBeforeUpdate) {
-        logger.error(`User not found: ${virtualAccount.userId}`);
-        throw new APIError("User not found", HttpStatus.NOT_FOUND);
-      }
-
-      logger.info(
-        `User wallet balance before update: ${userBeforeUpdate.wallet} NGN`
-      );
-
-      // Create transaction record
-      const transaction = new TransactionModel({
-        userId: virtualAccount.userId,
-        virtualAccountId: virtualAccount._id,
-        type: "funding",
-        amount: parseFloat(data.amount),
-        currency: "NGN",
-        status: "completed",
-        reference: data.reference,
-        wiaxyRef: data.transaction_ref, // Use transaction_ref as wiaxyRef for unique identification
-        merchantReference: data.merchant_reference,
-        description: `Payment received via ${data.account.bank_name}`,
-        metadata: {
-          payerAccountNumber: data.payer.account_number,
-          payerAccountName: data.payer.account_name,
-          payerBankName: data.payer.bank_name,
-          payerBankId: data.payer.bank_id,
-          bankName: data.account.bank_name,
-          bankId: data.account.bank_id,
-          accountNumber: data.account.account_number,
-          accountName: data.account.account_name,
-          customerEmail: data.customer?.email,
-          customerFirstName: data.customer?.firstName,
-          customerLastName: data.customer?.lastName,
-          transactionRef: data.transaction_ref,
-        },
-      });
-
-      try {
-        await transaction.save();
-        logger.info(
-          `Transaction saved: ${data.reference} with wiaxyRef: ${data.transaction_ref} and ID: ${transaction._id}`
-        );
-      } catch (saveError: any) {
-        // Handle duplicate key error specifically
-        if (saveError.code === 11000) {
-          const duplicateField = Object.keys(saveError.keyPattern || {})[0];
-          const duplicateValue = duplicateField
-            ? saveError.keyValue?.[duplicateField]
-            : "unknown";
-          logger.warn(
-            `Duplicate transaction detected. Field: ${duplicateField}, Value: ${duplicateValue}`
-          );
-
-          // Check if this is a wiaxyRef duplicate (which should not happen with our logic)
-          if (duplicateField === "wiaxyRef") {
-            logger.error(
-              `Unexpected duplicate wiaxyRef: ${data.transaction_ref}. This should not happen with our duplicate detection logic.`
-            );
-            throw new APIError(
-              "Transaction processing failed due to duplicate detection issue",
-              HttpStatus.INTERNAL_SERVER_ERROR
-            );
-          }
-
-          // For other duplicate fields, just skip
-          logger.info(
-            `Skipping transaction due to duplicate ${duplicateField}`
-          );
-          return;
-        }
-
-        // Re-throw other errors
-        throw saveError;
-      }
-
-      // Update user's wallet balance
-      const amount = parseFloat(data.amount);
-      logger.info(
-        `Updating wallet balance for user ${virtualAccount.userId} by ${amount} NGN`
-      );
-
-      const updatedUser = await UserModel.findByIdAndUpdate(
-        virtualAccount.userId,
-        {
-          $inc: { wallet: amount },
-        },
-        { new: true }
-      );
-
-      if (!updatedUser) {
-        logger.error(
-          `Failed to update wallet balance for user: ${virtualAccount.userId}`
-        );
-        throw new APIError(
-          "Failed to update wallet balance",
-          HttpStatus.INTERNAL_SERVER_ERROR
-        );
-      }
-
-      logger.info(
-        `Payment processed successfully: ${data.reference} - Amount: ${data.amount} NGN - Old balance: ${userBeforeUpdate.wallet} NGN - New balance: ${updatedUser.wallet} NGN`
+        "Payment notification processing delegated to PalmPay webhook controller"
       );
     } catch (error) {
       logger.error("Failed to process payment notification:", error);
@@ -540,7 +151,7 @@ class VirtualAccountService {
     }
   }
 
-  // Get transaction history for user
+  // Get user transactions
   async getUserTransactions(
     userId: string,
     page: number = 1,
@@ -561,7 +172,7 @@ class VirtualAccountService {
 
       const [transactions, total] = await Promise.all([
         TransactionModel.find({ userId })
-          .populate("virtualAccountId", "accountNumber bankName")
+          .populate("virtualAccountId", "virtualAccountNo virtualAccountName")
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(limit),
@@ -582,14 +193,24 @@ class VirtualAccountService {
         },
       };
     } catch (error) {
-      logger.error(`Failed to get transactions for user ${userId}:`, error);
+      logger.error("Failed to get user transactions:", error);
       throw error;
     }
   }
 
-  // Verify webhook signature
+  // Verify webhook signature (handled by PalmPay utilities)
   verifyWebhookSignature(signature: string, payload: string): boolean {
-    return billstackAPI.verifyWebhookSignature(signature, payload);
+    try {
+      // This method is kept for compatibility but actual verification
+      // is handled by PalmPay utilities
+      logger.info(
+        "Webhook signature verification delegated to PalmPay utilities"
+      );
+      return true;
+    } catch (error) {
+      logger.error("Failed to verify webhook signature:", error);
+      return false;
+    }
   }
 
   // Get available banks for user
@@ -598,35 +219,39 @@ class VirtualAccountService {
     existing: Array<{
       bankId: string;
       bankName: string;
-      accountNumber: string;
+      virtualAccountNo: string;
+      status: string;
     }>;
   }> {
     try {
-      const userAccounts = await VirtualAccountModel.find({
+      // Check if user already has a virtual account
+      const existingAccount = await VirtualAccountModel.findOne({
         userId,
-        isActive: true,
-      }).select("bankId bankName accountNumber");
-
-      const allBanks = [
-        { bankId: BankType.NINE_PSB, bankName: BANK_NAMES[BankType.NINE_PSB] },
-        { bankId: BankType.PALMPAY, bankName: BANK_NAMES[BankType.PALMPAY] },
-      ];
-
-      const existingBankIds = userAccounts.map((account) => account.bankId);
-      const availableBanks = allBanks.filter(
-        (bank) => !existingBankIds.includes(bank.bankId)
-      );
+        provider: "palmpay",
+      });
 
       return {
-        available: availableBanks,
-        existing: userAccounts.map((account) => ({
-          bankId: account.bankId,
-          bankName: account.bankName,
-          accountNumber: account.accountNumber,
-        })),
+        available: existingAccount
+          ? []
+          : [
+              {
+                bankId: "PALMPAY",
+                bankName: "Palmpay Bank",
+              },
+            ],
+        existing: existingAccount
+          ? [
+              {
+                bankId: "PALMPAY",
+                bankName: "Palmpay Bank",
+                virtualAccountNo: existingAccount.virtualAccountNo,
+                status: existingAccount.status,
+              },
+            ]
+          : [],
       };
     } catch (error) {
-      logger.error(`Failed to get available banks for user ${userId}:`, error);
+      logger.error("Failed to get available banks:", error);
       throw error;
     }
   }

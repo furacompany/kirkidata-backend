@@ -1,17 +1,18 @@
 import mongoose, { Document, Schema } from "mongoose";
-import { BankType } from "../constants/banks.constant";
 
 export interface IVirtualAccount extends Document {
   _id: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
-  reference: string; // BillStack reference
-  accountNumber: string;
-  accountName: string;
-  bankName: string;
-  bankId: BankType;
-  isActive: boolean;
-  isKYCVerified: boolean;
-  bvn?: string;
+  provider: "palmpay";
+  virtualAccountNo: string; // PalmPay virtual account number
+  virtualAccountName: string; // PalmPay virtual account name
+  status: "Enabled" | "Disabled" | "Deleted";
+  identityType: "personal" | "personal_nin" | "company";
+  licenseNumber: string; // BVN, NIN, or CAC number
+  customerName: string;
+  email?: string;
+  accountReference?: string; // Custom reference field
+  rawResponse?: any; // Store PalmPay API response
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,40 +24,50 @@ const virtualAccountSchema = new Schema<IVirtualAccount>(
       ref: "User",
       required: [true, "User ID is required"],
     },
-    reference: {
+    provider: {
       type: String,
-      required: [true, "Reference is required"],
+      required: [true, "Provider is required"],
+      enum: ["palmpay"],
+      default: "palmpay",
+    },
+    virtualAccountNo: {
+      type: String,
+      required: [true, "Virtual account number is required"],
       unique: true,
     },
-    accountNumber: {
+    virtualAccountName: {
       type: String,
-      required: [true, "Account number is required"],
-      unique: true,
+      required: [true, "Virtual account name is required"],
     },
-    accountName: {
+    status: {
       type: String,
-      required: [true, "Account name is required"],
+      required: [true, "Status is required"],
+      enum: ["Enabled", "Disabled", "Deleted"],
+      default: "Enabled",
     },
-    bankName: {
+    identityType: {
       type: String,
-      required: [true, "Bank name is required"],
+      required: [true, "Identity type is required"],
+      enum: ["personal", "personal_nin", "company"],
     },
-    bankId: {
+    licenseNumber: {
       type: String,
-      required: [true, "Bank ID is required"],
-      enum: Object.values(BankType),
+      required: [true, "License number is required"],
     },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
-    isKYCVerified: {
-      type: Boolean,
-      default: false,
-    },
-    bvn: {
+    customerName: {
       type: String,
-      sparse: true, // Allow multiple null values
+      required: [true, "Customer name is required"],
+    },
+    email: {
+      type: String,
+      sparse: true,
+    },
+    accountReference: {
+      type: String,
+      sparse: true,
+    },
+    rawResponse: {
+      type: Schema.Types.Mixed,
     },
   },
   {
@@ -66,10 +77,11 @@ const virtualAccountSchema = new Schema<IVirtualAccount>(
 
 // Indexes
 virtualAccountSchema.index({ userId: 1 });
-virtualAccountSchema.index({ reference: 1 }, { unique: true });
-virtualAccountSchema.index({ accountNumber: 1 }, { unique: true });
-virtualAccountSchema.index({ isActive: 1 });
-virtualAccountSchema.index({ isKYCVerified: 1 });
+virtualAccountSchema.index({ virtualAccountNo: 1 }, { unique: true });
+virtualAccountSchema.index({ provider: 1 });
+virtualAccountSchema.index({ status: 1 });
+virtualAccountSchema.index({ identityType: 1 });
+virtualAccountSchema.index({ accountReference: 1 });
 
 export default mongoose.model<IVirtualAccount>(
   "VirtualAccount",

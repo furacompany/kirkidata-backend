@@ -10,7 +10,7 @@ router.post("/", authenticateUser, (req, res, next) =>
 );
 
 router.get("/", authenticateUser, (req, res, next) =>
-  virtualAccountController.getUserVirtualAccounts(req, res, next)
+  virtualAccountController.getUserVirtualAccount(req, res, next)
 );
 
 router.get("/available-banks", authenticateUser, (req, res, next) =>
@@ -34,9 +34,7 @@ router.post("/kyc/upgrade", authenticateUser, (req, res, next) =>
 );
 
 // Public webhook endpoint (no authentication required)
-router.post("/webhook", (req, res, next) =>
-  virtualAccountController.processWebhook(req, res, next)
-);
+// Note: PalmPay webhook is handled by a separate controller
 
 // Health check endpoint
 router.get("/health", (req, res, next) =>
