@@ -29,4 +29,29 @@ const destMainFile = path.join(__dirname, "dist", "utils", "palmpay.js");
 fs.copyFileSync(mainPalmpayFile, destMainFile);
 console.log("📋 Copied palmpay.js to dist/utils/");
 
-console.log("🎉 PalmPay utilities copied to dist folder successfully!");
+// Copy keys directory if it exists
+const keysSourceDir = path.join(__dirname, "src", "keys");
+const keysDestDir = path.join(__dirname, "dist", "keys");
+
+if (fs.existsSync(keysSourceDir)) {
+  if (!fs.existsSync(keysDestDir)) {
+    fs.mkdirSync(keysDestDir, { recursive: true });
+    console.log("✅ Created dist/keys directory");
+  }
+
+  const keyFiles = fs
+    .readdirSync(keysSourceDir)
+    .filter((file) => file.endsWith(".pem"));
+  keyFiles.forEach((file) => {
+    const sourceFile = path.join(keysSourceDir, file);
+    const destFile = path.join(keysDestDir, file);
+    fs.copyFileSync(sourceFile, destFile);
+    console.log(`🔑 Copied ${file} to dist/keys/`);
+  });
+} else {
+  console.log("⚠️ No keys directory found in src/keys/");
+}
+
+console.log(
+  "🎉 PalmPay utilities and keys copied to dist folder successfully!"
+);
