@@ -6,9 +6,8 @@
     "start": "node dist/server.js",
     "dev": "nodemon",
     "build": "tsc && node copy-palmpay-utils.js",
-    "check-migration": "node check-migration.js",
-    "migrate": "node migrate-to-palmpay.js",
-    "create-accounts": "node create-palmpay-accounts.js"
+    "reset-accounts": "node reset-virtual-accounts.js",
+    "create-accounts": "node create-virtual-accounts.js"
   },
   "repository": {
     "type": "git",
