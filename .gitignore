@@ -141,10 +141,7 @@ Dockerfile
 docker-compose*.yml
 
 # SSL certificates
-*.pem
-*.key
-*.crt
-*.csr
+
 
 # API documentation
 swagger/
