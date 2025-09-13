@@ -21,14 +21,15 @@ async function connectDB() {
 
 // Get all 9PSB virtual accounts
 async function getOldAccounts() {
-  const VirtualAccount = mongoose.model(
-    "VirtualAccount",
-    new mongoose.Schema({}, { strict: false })
-  );
-  const User = mongoose.model(
-    "User",
-    new mongoose.Schema({}, { strict: false })
-  );
+  const VirtualAccount =
+    mongoose.models.VirtualAccount ||
+    mongoose.model(
+      "VirtualAccount",
+      new mongoose.Schema({}, { strict: false })
+    );
+  const User =
+    mongoose.models.User ||
+    mongoose.model("User", new mongoose.Schema({}, { strict: false }));
 
   const oldAccounts = await VirtualAccount.find({ bankId: "9PSB" });
   console.log(`📊 Found ${oldAccounts.length} old 9PSB accounts`);
@@ -110,10 +111,12 @@ async function createPalmPayAccount(user) {
     }
 
     // Save to database
-    const VirtualAccount = mongoose.model(
-      "VirtualAccount",
-      new mongoose.Schema({}, { strict: false })
-    );
+    const VirtualAccount =
+      mongoose.models.VirtualAccount ||
+      mongoose.model(
+        "VirtualAccount",
+        new mongoose.Schema({}, { strict: false })
+      );
     await VirtualAccount.create({
       userId: user._id,
       provider: "palmpay",
@@ -166,10 +169,12 @@ async function migrate() {
 
     // Step 1: Delete all old 9PSB accounts
     console.log("\n🗑️ Step 1: Deleting old 9PSB accounts...");
-    const VirtualAccount = mongoose.model(
-      "VirtualAccount",
-      new mongoose.Schema({}, { strict: false })
-    );
+    const VirtualAccount =
+      mongoose.models.VirtualAccount ||
+      mongoose.model(
+        "VirtualAccount",
+        new mongoose.Schema({}, { strict: false })
+      );
     const deleteResult = await VirtualAccount.deleteMany({ bankId: "9PSB" });
     console.log(`✅ Deleted ${deleteResult.deletedCount} old 9PSB accounts`);
 
@@ -187,10 +192,12 @@ async function migrate() {
       );
 
       // Check if user already has a PalmPay account
-      const VirtualAccount = mongoose.model(
-        "VirtualAccount",
-        new mongoose.Schema({}, { strict: false })
-      );
+      const VirtualAccount =
+        mongoose.models.VirtualAccount ||
+        mongoose.model(
+          "VirtualAccount",
+          new mongoose.Schema({}, { strict: false })
+        );
       const existingAccount = await VirtualAccount.findOne({
         userId: user._id,
         provider: "palmpay",
