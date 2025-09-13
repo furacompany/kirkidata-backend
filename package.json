@@ -7,7 +7,8 @@
     "dev": "nodemon",
     "build": "tsc && node copy-palmpay-utils.js",
     "check-migration": "node check-migration.js",
-    "migrate": "node migrate-to-palmpay.js"
+    "migrate": "node migrate-to-palmpay.js",
+    "create-accounts": "node create-palmpay-accounts.js"
   },
   "repository": {
     "type": "git",
