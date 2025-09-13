@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node dist/server.js",
     "dev": "nodemon",
-    "build": "tsc"
+    "build": "tsc",
+    "check-migration": "node check-migration.js",
+    "migrate": "node migrate-to-palmpay.js"
   },
   "repository": {
     "type": "git",
