@@ -1,10 +1,12 @@
 import { Request, Response, NextFunction } from "express";
 import TransactionModel from "../models/transaction.model";
 import UserModel from "../models/user.model";
+import transactionService from "../services/transaction.service";
 import { validateSchema } from "../validations/transaction.validation";
 import {
   transactionSearchSchema,
   transactionStatsSchema,
+  adminUserTransactionsSchema,
 } from "../validations/transaction.validation";
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
@@ -479,6 +481,72 @@ class TransactionController {
         success: true,
         message: "Transaction retrieved successfully",
         data: formattedTransaction,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Get user transactions by user ID (admin only)
+  async getAdminUserTransactions(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const { userId } = req.params;
+      const queryParams = req.query;
+
+      if (!userId) {
+        throw new APIError("User ID is required", HttpStatus.BAD_REQUEST);
+      }
+
+      // Convert string values to appropriate types
+      const filters = {
+        ...queryParams,
+        page: queryParams.page
+          ? parseInt(queryParams.page as string)
+          : undefined,
+        limit: queryParams.limit
+          ? parseInt(queryParams.limit as string)
+          : undefined,
+        minAmount: queryParams.minAmount
+          ? parseFloat(queryParams.minAmount as string)
+          : undefined,
+        maxAmount: queryParams.maxAmount
+          ? parseFloat(queryParams.maxAmount as string)
+          : undefined,
+        minProfit: queryParams.minProfit
+          ? parseFloat(queryParams.minProfit as string)
+          : undefined,
+        maxProfit: queryParams.maxProfit
+          ? parseFloat(queryParams.maxProfit as string)
+          : undefined,
+        startDate: queryParams.startDate
+          ? new Date(queryParams.startDate as string)
+          : undefined,
+        endDate: queryParams.endDate
+          ? new Date(queryParams.endDate as string)
+          : undefined,
+        includeMetadata: queryParams.includeMetadata === "true",
+      };
+
+      // Validate filters
+      const validatedFilters = validateSchema(
+        adminUserTransactionsSchema,
+        filters
+      );
+
+      // Get user transactions with admin filters
+      const result = await transactionService.getAdminUserTransactions(
+        userId,
+        validatedFilters
+      );
+
+      res.status(HttpStatus.OK).json({
+        success: true,
+        message: "User transactions retrieved successfully",
+        data: result,
       });
     } catch (error) {
       next(error);

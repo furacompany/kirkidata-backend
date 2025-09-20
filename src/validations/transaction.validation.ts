@@ -96,6 +96,89 @@ export const transactionIdSchema = Joi.object({
     }),
 });
 
+// Admin user transactions validation
+export const adminUserTransactionsSchema = Joi.object({
+  type: Joi.string().valid("funding", "airtime", "data").optional().messages({
+    "any.only": "Type must be funding, airtime, or data",
+  }),
+  status: Joi.string()
+    .valid("pending", "completed", "failed", "cancelled")
+    .optional()
+    .messages({
+      "any.only": "Status must be pending, completed, failed, or cancelled",
+    }),
+  networkName: Joi.string()
+    .valid("MTN", "AIRTEL", "GLO", "9MOBILE")
+    .optional()
+    .messages({
+      "any.only": "Network must be MTN, AIRTEL, GLO, or 9MOBILE",
+    }),
+  phoneNumber: Joi.string()
+    .pattern(/^0[789][01]\d{8}$/)
+    .optional()
+    .messages({
+      "string.pattern.base":
+        "Phone number must be in Nigerian format (e.g., 08123456789)",
+    }),
+  minAmount: Joi.number().min(0).optional().messages({
+    "number.base": "Minimum amount must be a number",
+    "number.min": "Minimum amount cannot be negative",
+  }),
+  maxAmount: Joi.number().min(0).optional().messages({
+    "number.base": "Maximum amount must be a number",
+    "number.min": "Maximum amount cannot be negative",
+  }),
+  minProfit: Joi.number().min(0).optional().messages({
+    "number.base": "Minimum profit must be a number",
+    "number.min": "Minimum profit cannot be negative",
+  }),
+  maxProfit: Joi.number().min(0).optional().messages({
+    "number.base": "Maximum profit must be a number",
+    "number.min": "Maximum profit cannot be negative",
+  }),
+  startDate: Joi.date().optional().messages({
+    "date.base": "Start date must be a valid date",
+  }),
+  endDate: Joi.date().min(Joi.ref("startDate")).optional().messages({
+    "date.base": "End date must be a valid date",
+    "date.min": "End date must be after start date",
+  }),
+  page: Joi.number().integer().min(1).default(1).optional().messages({
+    "number.base": "Page must be a number",
+    "number.integer": "Page must be an integer",
+    "number.min": "Page must be at least 1",
+  }),
+  limit: Joi.number()
+    .integer()
+    .min(1)
+    .max(100)
+    .default(20)
+    .optional()
+    .messages({
+      "number.base": "Limit must be a number",
+      "number.integer": "Limit must be an integer",
+      "number.min": "Limit must be at least 1",
+      "number.max": "Limit cannot exceed 100",
+    }),
+  sortBy: Joi.string()
+    .valid("createdAt", "amount", "type", "status", "profit", "updatedAt")
+    .default("createdAt")
+    .optional()
+    .messages({
+      "any.only": "Invalid sort field",
+    }),
+  sortOrder: Joi.string()
+    .valid("asc", "desc")
+    .default("desc")
+    .optional()
+    .messages({
+      "any.only": "Sort order must be either asc or desc",
+    }),
+  includeMetadata: Joi.boolean().default(false).optional().messages({
+    "boolean.base": "Include metadata must be a boolean",
+  }),
+});
+
 // Validation helper function
 export const validateSchema = (schema: Joi.ObjectSchema, data: any) => {
   const { error, value } = schema.validate(data, { abortEarly: false });
