@@ -17,6 +17,11 @@ router.get("/stats", (req, res, next) =>
   transactionController.getTransactionStats(req, res, next)
 );
 
+// Get user transactions by user ID (admin only)
+router.get("/user/:userId", (req, res, next) =>
+  transactionController.getAdminUserTransactions(req, res, next)
+);
+
 // Get specific transaction by ID
 router.get("/:transactionId", (req, res, next) =>
   transactionController.getTransactionById(req, res, next)
