@@ -13,6 +13,13 @@ import { verifyBVN } from "../services/bvn.service";
 import { createVirtualAccount } from "../services/palmpay.service";
 import VirtualAccountModel from "../models/virtualAccount.model";
 
+// Company information constants
+const COMPANY_INFO = {
+  name: "KIRKIDATA LTD",
+  rcNumber: "RC8793157",
+  email: "JABIRYUSUFSAID@GMAIL.COM",
+} as const;
+
 class VirtualAccountController {
   // Create virtual account for user
   async createVirtualAccount(req: Request, res: Response, next: NextFunction) {
@@ -44,34 +51,20 @@ class VirtualAccountController {
         throw new APIError("User not found", HttpStatus.NOT_FOUND);
       }
 
-      // Hardcoded BVN for testing
-      const hardcodedBVN = "22584884665";
-
-      // Mock BVN verification
-      const bvnResult = await verifyBVN({
-        firstName: user.firstName,
-        lastName: user.lastName,
-        phoneNumber: user.phone,
-      });
-
-      if (!bvnResult.success) {
-        throw new APIError("BVN verification failed", HttpStatus.BAD_REQUEST);
-      }
-
       // Create virtual account name
       const virtualAccountName =
         `${user.firstName.trim()} ${user.lastName.trim()}`
           .replace(/\s+/g, " ")
           .trim();
 
-      // Call PalmPay to create virtual account
+      // Call PalmPay to create virtual account using company RC
       const palmpayRes = await createVirtualAccount({
         virtualAccountName: virtualAccountName,
-        identityType: "personal",
-        licenseNumber: hardcodedBVN,
+        identityType: "company",
+        licenseNumber: COMPANY_INFO.rcNumber,
         customerName: `${user.firstName.trim()} ${user.lastName.trim()}`,
         email: user.email,
-        accountReference: userId,
+        accountReference: `${COMPANY_INFO.name}-${userId}`,
       });
 
       if (!palmpayRes || palmpayRes.respCode !== "00000000") {
