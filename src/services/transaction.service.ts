@@ -53,7 +53,7 @@ interface PopulatedTransaction {
 }
 
 export interface AdminUserTransactionsFilters {
-  type?: "funding" | "airtime" | "data";
+  type?: "funding" | "airtime" | "data" | "debit";
   status?: "pending" | "completed" | "failed" | "cancelled";
   networkName?: "MTN" | "AIRTEL" | "GLO" | "9MOBILE";
   phoneNumber?: string;
@@ -99,6 +99,7 @@ export interface AdminUserTransactionsResult {
       funding: { count: number; amount: number };
       airtime: { count: number; amount: number; profit: number };
       data: { count: number; amount: number; profit: number };
+      debit: { count: number; amount: number };
     };
     byStatus: {
       pending: { count: number; amount: number };
@@ -263,6 +264,7 @@ class TransactionService {
         funding: { count: 0, amount: 0 },
         airtime: { count: 0, amount: 0, profit: 0 },
         data: { count: 0, amount: 0, profit: 0 },
+        debit: { count: 0, amount: 0 },
       };
 
       typeBreakdown.forEach((item) => {
@@ -280,6 +282,8 @@ class TransactionService {
             amount: item.amount,
             profit: item.profit,
           };
+        } else if (item._id === "debit") {
+          byType.debit = { count: item.count, amount: item.amount };
         }
       });
 
