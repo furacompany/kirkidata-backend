@@ -6,6 +6,7 @@ import logger from "../utils/logger";
 import TransactionModel from "../models/transaction.model";
 import VirtualAccountModel from "../models/virtualAccount.model";
 import UserModel from "../models/user.model";
+import { calculateFundingCharge } from "../utils/charges";
 
 export interface PalmPayWebhookData {
   orderNo: string;
@@ -198,7 +199,11 @@ async function processPalmPayWebhook(
     // Convert amount from cents to NGN
     const amountInNGN = webhookData.orderAmount / 100;
 
-    // Create new transaction
+    // Calculate charge based on tiered structure
+    const chargeAmount = calculateFundingCharge(amountInNGN);
+    const netAmount = amountInNGN - chargeAmount;
+
+    // Create funding transaction with charge information
     transaction = new TransactionModel({
       userId: user._id,
       virtualAccountId: virtualAccount._id,
@@ -221,22 +226,62 @@ async function processPalmPayWebhook(
         palmpayOrderNo: webhookData.orderNo,
         palmpayOrderStatus: webhookData.orderStatus,
         palmpaySessionId: webhookData.sessionId,
+        chargeAmount: chargeAmount,
+        originalFundingAmount: amountInNGN,
       },
     });
 
     await transaction.save();
 
-    // If transaction is successful, credit user wallet
+    // If transaction is successful, credit user wallet with net amount (after charge)
     if (webhookData.orderStatus === 1) {
-      user.wallet += amountInNGN;
+      user.wallet += netAmount;
       await user.save();
 
       logger.info("User wallet credited via PalmPay webhook", {
         userId: user._id,
-        amount: amountInNGN,
+        originalAmount: amountInNGN,
+        chargeAmount: chargeAmount,
+        netAmount: netAmount,
         newBalance: user.wallet,
         transactionId: transaction._id,
       });
+
+      // Create debit transaction for the charge if charge > 0
+      if (chargeAmount > 0) {
+        const chargeTransaction = new TransactionModel({
+          userId: user._id,
+          virtualAccountId: virtualAccount._id,
+          relatedTransactionId: transaction._id,
+          type: "debit",
+          amount: chargeAmount,
+          currency: webhookData.currency,
+          status: "completed",
+          reference: `CHARGE_${webhookData.orderNo}`,
+          description: `Funding charge deducted`,
+          metadata: {
+            relatedFundingTransaction: transaction._id,
+            originalFundingAmount: amountInNGN,
+            chargeAmount: chargeAmount,
+            payerAccountNumber: webhookData.payerAccountNo,
+            payerFirstName: webhookData.payerAccountName.split(" ")[0],
+            payerLastName: webhookData.payerAccountName
+              .split(" ")
+              .slice(1)
+              .join(" "),
+            bankName: webhookData.payerBankName,
+          },
+        });
+
+        await chargeTransaction.save();
+
+        logger.info("Charge debit transaction created", {
+          userId: user._id,
+          chargeAmount: chargeAmount,
+          transactionId: chargeTransaction._id,
+          relatedFundingTransaction: transaction._id,
+        });
+      }
     }
 
     return transaction;

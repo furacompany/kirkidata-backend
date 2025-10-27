@@ -327,6 +327,24 @@ class TransactionController {
         },
       ]);
 
+      // Get charge statistics (debit transactions for funding charges)
+      const chargeStats = await TransactionModel.aggregate([
+        {
+          $match: {
+            ...dateFilter,
+            type: "debit",
+            status: "completed",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalCharges: { $sum: 1 },
+            totalChargeAmount: { $sum: "$amount" },
+          },
+        },
+      ]);
+
       // Get transaction status breakdown
       const statusBreakdown = await TransactionModel.aggregate([
         {
@@ -371,6 +389,7 @@ class TransactionController {
           totalProfit:
             (airtimeStats[0]?.totalProfit || 0) +
             (dataStats[0]?.totalProfit || 0),
+          totalCharges: chargeStats[0]?.totalChargeAmount || 0,
         },
         airtime: {
           totalTransactions: airtimeStats[0]?.totalTransactions || 0,
@@ -383,6 +402,10 @@ class TransactionController {
           totalAmount: dataStats[0]?.totalAmount || 0,
           totalProfit: dataStats[0]?.totalProfit || 0,
           averageProfit: dataStats[0]?.averageProfit || 0,
+        },
+        charges: {
+          totalCharges: chargeStats[0]?.totalCharges || 0,
+          totalChargeAmount: chargeStats[0]?.totalChargeAmount || 0,
         },
         breakdown: {
           byStatus: statusBreakdown,

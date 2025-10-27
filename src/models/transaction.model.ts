@@ -1,11 +1,12 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export type TransactionType = "funding" | "airtime" | "data";
+export type TransactionType = "funding" | "airtime" | "data" | "debit";
 
 export interface ITransaction extends Document {
   _id: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
   virtualAccountId?: mongoose.Types.ObjectId;
+  relatedTransactionId?: mongoose.Types.ObjectId; // Link to related transaction (e.g., charge linking to funding)
   type: TransactionType;
   amount: number;
   currency: string;
@@ -34,6 +35,9 @@ export interface ITransaction extends Document {
     otobillResponse?: any;
     actualOtoBillCost?: number;
     calculatedProfit?: number;
+    // Charge specific metadata
+    chargeAmount?: number; // The charge deducted from funding
+    originalFundingAmount?: number; // The original funding amount before charge
   };
   createdAt: Date;
   updatedAt: Date;
@@ -50,10 +54,15 @@ const transactionSchema = new Schema<ITransaction>(
       type: Schema.Types.ObjectId,
       ref: "VirtualAccount",
     },
+    relatedTransactionId: {
+      type: Schema.Types.ObjectId,
+      ref: "Transaction",
+      sparse: true,
+    },
     type: {
       type: String,
       required: [true, "Transaction type is required"],
-      enum: ["funding", "airtime", "data"],
+      enum: ["funding", "airtime", "data", "debit"],
     },
     amount: {
       type: Number,
@@ -126,6 +135,9 @@ const transactionSchema = new Schema<ITransaction>(
       otobillResponse: Schema.Types.Mixed,
       actualOtoBillCost: Number,
       calculatedProfit: Number,
+      // Charge specific metadata
+      chargeAmount: Number,
+      originalFundingAmount: Number,
     },
   },
   {
@@ -136,6 +148,7 @@ const transactionSchema = new Schema<ITransaction>(
 // Indexes
 transactionSchema.index({ userId: 1 });
 transactionSchema.index({ virtualAccountId: 1 });
+transactionSchema.index({ relatedTransactionId: 1 }, { sparse: true });
 transactionSchema.index({ reference: 1 }); // Remove unique constraint from reference
 transactionSchema.index({ wiaxyRef: 1 }, { unique: true, sparse: true }); // Make wiaxyRef unique
 transactionSchema.index({ otobillRef: 1 }, { sparse: true }); // OtoBill reference

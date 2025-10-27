@@ -448,7 +448,10 @@ class PurchaseService {
     status?: string
   ) {
     try {
-      const query: any = { userId, type: { $in: ["airtime", "data"] } };
+      const query: any = {
+        userId,
+        type: { $in: ["airtime", "data", "funding", "debit"] },
+      };
 
       if (type && type !== "all") {
         query.type = type;
@@ -483,6 +486,11 @@ class PurchaseService {
         planId: tx.planId,
         planName: tx.planName,
         profit: tx.profit,
+        relatedTransactionId: tx.relatedTransactionId,
+        metadata: {
+          chargeAmount: tx.metadata?.chargeAmount,
+          originalFundingAmount: tx.metadata?.originalFundingAmount,
+        },
         createdAt: tx.createdAt,
         updatedAt: tx.updatedAt,
       }));
