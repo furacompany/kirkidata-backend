@@ -1,4 +1,4 @@
-import otobillAPI from "../configs/otobill";
+import aychindodataService from "./aychindodata.service";
 import DataPlanModel from "../models/dataPlan.model";
 import AirtimeModel from "../models/airtime.model";
 import TransactionModel from "../models/transaction.model";
@@ -86,10 +86,13 @@ class PurchaseService {
       const totalPages = Math.ceil(total / limit);
 
       const plans = dataPlans.map((plan) => ({
-        planId: plan.planId, // Use actual OtoBill planId instead of customId
+        id: plan._id.toString(), // Use MongoDB _id as identifier
+        aychindodataId: plan.aychindodataId, // Aychindodata numeric plan ID
+        planId: plan.planId, // Optional string identifier
         name: plan.name,
         networkName: plan.networkName,
         planType: plan.planType,
+        dataSize: plan.dataSize,
         validityDays: plan.validityDays,
         price: plan.adminPrice, // Show admin price to users
         formattedPrice: `₦${plan.adminPrice.toLocaleString()}`,
@@ -154,10 +157,13 @@ class PurchaseService {
       const totalPages = Math.ceil(total / limit);
 
       const plans = dataPlans.map((plan) => ({
-        planId: plan.planId, // Use actual OtoBill planId instead of customId
+        id: plan._id.toString(), // Use MongoDB _id as identifier
+        aychindodataId: plan.aychindodataId, // Aychindodata numeric plan ID
+        planId: plan.planId, // Optional string identifier
         name: plan.name,
         networkName: plan.networkName,
         planType: plan.planType,
+        dataSize: plan.dataSize,
         validityDays: plan.validityDays,
         price: plan.adminPrice, // Show admin price to users
         formattedPrice: `₦${plan.adminPrice.toLocaleString()}`,
@@ -242,52 +248,68 @@ class PurchaseService {
       user.wallet -= totalCost;
       await user.save();
 
-      // Create transaction record (profit will be calculated after OtoBill response)
+      // Generate unique request ID for Aychindodata
+      const requestId = `Airtime_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+
+      // Create transaction record (profit will be calculated after Aychindodata response)
       const transaction = new TransactionModel({
         userId,
         type: "airtime",
         amount: totalCost,
         currency: "NGN",
         status: "pending",
-        reference: `AIR_${Date.now()}_${Math.random()
-          .toString(36)
-          .substr(2, 9)}`,
+        reference: requestId,
         description: `${data.networkName} airtime purchase for ${data.phoneNumber}`,
         networkName: data.networkName,
         phoneNumber: data.phoneNumber,
-        profit: 0, // Will be calculated after OtoBill response
+        profit: 0, // Will be calculated after Aychindodata response
       });
 
       await transaction.save();
 
       try {
-        // Call OtoBill API
-        const otobillResponse = await otobillAPI.buyAirtime({
-          networkName: data.networkName,
-          phoneNumber: data.phoneNumber,
-          amount: data.amount,
-        });
+        // Call Aychindodata API
+        const aychindodataResponse = await aychindodataService.buyAirtime(
+          data.networkName,
+          data.phoneNumber,
+          data.amount,
+          requestId
+        );
 
-        // Calculate profit: User paid totalCost, OtoBill charged otobillResponse.amount
-        // Profit = totalCost - otobillResponse.amount
-        const actualOtoBillCost = otobillResponse.amount;
-        const profit = totalCost - actualOtoBillCost;
+        // Calculate profit: User paid totalCost, Aychindodata charged amount (with discount)
+        // The response shows: amount (requested), discount, and newbal (balance after)
+        // Actual cost = amount - discount (or we can use: oldbal - newbal)
+        const actualCost = aychindodataResponse.amount - (aychindodataResponse.discount || 0);
+        const profit = totalCost - actualCost;
 
-        // Update transaction with OtoBill response
-        transaction.status = "completed";
-        transaction.otobillRef = otobillResponse.topupmateRef;
+        // Update transaction with Aychindodata response
+        transaction.status =
+          aychindodataResponse.status === "success" ? "completed" : "failed";
         transaction.profit = Math.max(0, profit); // Ensure profit is not negative
         if (!transaction.metadata) {
           transaction.metadata = {};
         }
-        transaction.metadata.otobillTransactionId =
-          otobillResponse.transactionId;
-        transaction.metadata.otobillStatus = "successful";
-        transaction.metadata.otobillResponse = otobillResponse;
-        transaction.metadata.actualOtoBillCost = actualOtoBillCost;
+        transaction.metadata.aychindodataRequestId = aychindodataResponse["request-id"];
+        transaction.metadata.aychindodataStatus = aychindodataResponse.status;
+        transaction.metadata.aychindodataResponse = aychindodataResponse;
+        transaction.metadata.actualAychindodataCost = actualCost;
         transaction.metadata.calculatedProfit = profit;
+        transaction.metadata.oldBalance = aychindodataResponse.oldbal;
+        transaction.metadata.newBalance = aychindodataResponse.newbal;
 
         await transaction.save();
+
+        if (transaction.status === "failed") {
+          // Refund user if failed
+          user.wallet += totalCost;
+          await user.save();
+          throw new APIError(
+            aychindodataResponse.message || "Airtime purchase failed",
+            HttpStatus.INTERNAL_SERVER_ERROR
+          );
+        }
 
         return {
           transactionId: transaction._id,
@@ -295,16 +317,18 @@ class PurchaseService {
           amount: data.amount,
           markup: airtime.adminPrice,
           totalCost,
-          actualOtoBillCost,
+          actualCost,
+          discount: aychindodataResponse.discount,
           profit: transaction.profit,
           status: "completed",
           description: transaction.description,
           networkName: data.networkName,
           phoneNumber: data.phoneNumber,
-          otobillRef: otobillResponse.topupmateRef,
+          requestId: aychindodataResponse["request-id"],
+          message: aychindodataResponse.message,
         };
-      } catch (otobillError) {
-        // If OtoBill fails, refund user and update transaction
+      } catch (aychindodataError: any) {
+        // If Aychindodata fails, refund user and update transaction
         user.wallet += totalCost;
         await user.save();
 
@@ -312,14 +336,14 @@ class PurchaseService {
         if (!transaction.metadata) {
           transaction.metadata = {};
         }
-        transaction.metadata.otobillStatus = "failed";
-        transaction.metadata.otobillResponse = otobillError;
+        transaction.metadata.aychindodataStatus = "failed";
+        transaction.metadata.aychindodataResponse = aychindodataError;
 
         await transaction.save();
 
-        logger.error("OtoBill airtime purchase failed:", otobillError);
+        logger.error("Aychindodata airtime purchase failed:", aychindodataError);
         throw new APIError(
-          "Airtime purchase failed. Your wallet has been refunded.",
+          aychindodataError.message || "Airtime purchase failed. Your wallet has been refunded.",
           HttpStatus.INTERNAL_SERVER_ERROR
         );
       }
@@ -338,13 +362,26 @@ class PurchaseService {
         throw new APIError("User not found", HttpStatus.NOT_FOUND);
       }
 
-      // Get data plan
-      const dataPlan = await DataPlanModel.findOne({
-        planId: data.planId, // Use actual OtoBill planId instead of customId
-        isActive: true,
-      });
+      // Get data plan by MongoDB _id or aychindodataId
+      let dataPlan;
+      if (data.planId) {
+        // Try to find by MongoDB _id first
+        dataPlan = await DataPlanModel.findById(data.planId);
+        // If not found, try by aychindodataId (assuming it was passed as string)
+        if (!dataPlan && !isNaN(Number(data.planId))) {
+          dataPlan = await DataPlanModel.findOne({
+            aychindodataId: Number(data.planId),
+            isActive: true,
+          });
+        }
+      } else if (data.aychindodataId) {
+        dataPlan = await DataPlanModel.findOne({
+          aychindodataId: data.aychindodataId,
+          isActive: true,
+        });
+      }
 
-      if (!dataPlan) {
+      if (!dataPlan || !dataPlan.isActive) {
         throw new APIError("Data plan not found", HttpStatus.NOT_FOUND);
       }
 
@@ -360,6 +397,11 @@ class PurchaseService {
       user.wallet -= dataPlan.adminPrice;
       await user.save();
 
+      // Generate unique request ID for Aychindodata
+      const requestId = `Data_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+
       // Create transaction record
       const transaction = new TransactionModel({
         userId,
@@ -367,13 +409,11 @@ class PurchaseService {
         amount: dataPlan.adminPrice,
         currency: "NGN",
         status: "pending",
-        reference: `DATA_${Date.now()}_${Math.random()
-          .toString(36)
-          .substr(2, 9)}`,
+        reference: requestId,
         description: `${dataPlan.name} for ${data.phoneNumber}`,
         networkName: dataPlan.networkName,
         phoneNumber: data.phoneNumber,
-        planId: dataPlan.planId, // Use actual OtoBill planId
+        planId: dataPlan.planId || dataPlan.aychindodataId.toString(),
         planName: dataPlan.name,
         profit: dataPlan.adminPrice - (dataPlan.originalPrice || 0), // Handle undefined case
       });
@@ -381,40 +421,63 @@ class PurchaseService {
       await transaction.save();
 
       try {
-        // Call OtoBill API
-        const otobillResponse = await otobillAPI.buyData({
-          planId: dataPlan.planId, // Use OtoBill's plan ID
-          phoneNumber: data.phoneNumber,
-        });
+        // Call Aychindodata API using the numeric plan ID
+        const aychindodataResponse = await aychindodataService.buyData(
+          dataPlan.networkName,
+          data.phoneNumber,
+          dataPlan.aychindodataId,
+          requestId
+        );
 
-        // Update transaction with OtoBill response
-        transaction.status = "completed";
-        transaction.otobillRef = otobillResponse.topupmateRef;
+        // Calculate profit: User paid adminPrice, Aychindodata charged amount
+        const actualCost = parseFloat(aychindodataResponse.amount);
+        const profit = dataPlan.adminPrice - actualCost;
+
+        // Update transaction with Aychindodata response
+        transaction.status =
+          aychindodataResponse.status === "success" ? "completed" : "failed";
+        transaction.profit = Math.max(0, profit); // Ensure profit is not negative
         if (!transaction.metadata) {
           transaction.metadata = {};
         }
-        transaction.metadata.otobillTransactionId =
-          otobillResponse.transactionId;
-        transaction.metadata.otobillStatus = "successful";
-        transaction.metadata.otobillResponse = otobillResponse;
+        transaction.metadata.aychindodataRequestId = aychindodataResponse["request-id"];
+        transaction.metadata.aychindodataStatus = aychindodataResponse.status;
+        transaction.metadata.aychindodataResponse = aychindodataResponse;
+        transaction.metadata.actualAychindodataCost = actualCost;
+        transaction.metadata.calculatedProfit = profit;
+        transaction.metadata.oldBalance = aychindodataResponse.oldbal;
+        transaction.metadata.newBalance = aychindodataResponse.newbal;
+        transaction.metadata.dataplan = aychindodataResponse.dataplan;
 
         await transaction.save();
+
+        if (transaction.status === "failed") {
+          // Refund user if failed
+          user.wallet += dataPlan.adminPrice;
+          await user.save();
+          throw new APIError(
+            aychindodataResponse.message || "Data purchase failed",
+            HttpStatus.INTERNAL_SERVER_ERROR
+          );
+        }
 
         return {
           transactionId: transaction._id,
           reference: transaction.reference,
           amount: dataPlan.adminPrice,
-          profit: dataPlan.adminPrice - (dataPlan.originalPrice || 0), // Handle undefined case
+          profit: transaction.profit,
           status: "completed",
           description: transaction.description,
           networkName: dataPlan.networkName,
           phoneNumber: data.phoneNumber,
-          planId: dataPlan.planId, // Use actual OtoBill planId
+          planId: dataPlan.planId || dataPlan.aychindodataId.toString(),
           planName: dataPlan.name,
-          otobillRef: otobillResponse.topupmateRef,
+          dataSize: dataPlan.dataSize,
+          requestId: aychindodataResponse["request-id"],
+          message: aychindodataResponse.message,
         };
-      } catch (otobillError) {
-        // If OtoBill fails, refund user and update transaction
+      } catch (aychindodataError: any) {
+        // If Aychindodata fails, refund user and update transaction
         user.wallet += dataPlan.adminPrice;
         await user.save();
 
@@ -422,14 +485,14 @@ class PurchaseService {
         if (!transaction.metadata) {
           transaction.metadata = {};
         }
-        transaction.metadata.otobillStatus = "failed";
-        transaction.metadata.otobillResponse = otobillError;
+        transaction.metadata.aychindodataStatus = "failed";
+        transaction.metadata.aychindodataResponse = aychindodataError;
 
         await transaction.save();
 
-        logger.error("OtoBill data purchase failed:", otobillError);
+        logger.error("Aychindodata data purchase failed:", aychindodataError);
         throw new APIError(
-          "Data purchase failed. Your wallet has been refunded.",
+          aychindodataError.message || "Data purchase failed. Your wallet has been refunded.",
           HttpStatus.INTERNAL_SERVER_ERROR
         );
       }
@@ -510,6 +573,8 @@ class PurchaseService {
   }
 
   // Check transaction status
+  // Note: Aychindodata doesn't have a transaction status check endpoint
+  // This method returns the current transaction status from our database
   async checkTransactionStatus(userId: string, transactionId: string) {
     try {
       const transaction = await TransactionModel.findOne({
@@ -522,44 +587,9 @@ class PurchaseService {
         throw new APIError("Transaction not found", HttpStatus.NOT_FOUND);
       }
 
-      // If transaction is pending, check with OtoBill
-      if (transaction.status === "pending" && transaction.otobillRef) {
-        try {
-          const otobillStatus = await otobillAPI.checkTransactionStatus(
-            transaction.otobillRef
-          );
-
-          // Update transaction status based on OtoBill response
-          if (
-            otobillStatus.status === "successful" &&
-            transaction.status === "pending"
-          ) {
-            transaction.status = "completed";
-            if (!transaction.metadata) {
-              transaction.metadata = {};
-            }
-            transaction.metadata.otobillStatus = otobillStatus.status;
-            transaction.metadata.otobillResponse = otobillStatus;
-            await transaction.save();
-          } else if (
-            otobillStatus.status === "failed" &&
-            transaction.status === "pending"
-          ) {
-            transaction.status = "failed";
-            if (!transaction.metadata) {
-              transaction.metadata = {};
-            }
-            transaction.metadata.otobillStatus = otobillStatus.status;
-            transaction.metadata.otobillResponse = otobillStatus;
-            await transaction.save();
-          }
-        } catch (otobillError) {
-          logger.error(
-            "Failed to check OtoBill transaction status:",
-            otobillError
-          );
-        }
-      }
+      // Aychindodata doesn't provide a status check endpoint
+      // The status is determined by the API response at purchase time
+      // Return the current transaction status from our database
 
       return {
         id: transaction._id,
@@ -574,7 +604,7 @@ class PurchaseService {
         planId: transaction.planId,
         planName: transaction.planName,
         profit: transaction.profit,
-        otobillRef: transaction.otobillRef,
+        requestId: transaction.metadata?.aychindodataRequestId,
         createdAt: transaction.createdAt,
         updatedAt: transaction.updatedAt,
       };

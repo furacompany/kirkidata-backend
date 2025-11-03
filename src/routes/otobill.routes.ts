@@ -1,3 +1,13 @@
+/**
+ * @deprecated This file is deprecated. OTOBill routes have been replaced by Aychindodata routes.
+ * This file is kept for reference only. Use src/routes/aychindodata.routes.ts instead.
+ * 
+ * Migration completed: All functionality has been moved to Aychindodata API.
+ * This file will be removed in a future version.
+ * 
+ * NOTE: These routes are no longer registered in api.routes.ts
+ */
+
 import { Router } from "express";
 import otobillController from "../controllers/otobill.controller";
 import { authenticateAdmin } from "../middlewares/auth.middleware";

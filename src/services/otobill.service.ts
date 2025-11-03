@@ -1,3 +1,11 @@
+/**
+ * @deprecated This file is deprecated. OTOBill service has been replaced by Aychindodata service.
+ * This file is kept for reference only. Use src/services/aychindodata.service.ts instead.
+ * 
+ * Migration completed: All functionality has been moved to Aychindodata API.
+ * This file will be removed in a future version.
+ */
+
 import otobillAPI from "../configs/otobill";
 import DataPlanModel from "../models/dataPlan.model";
 import AirtimeModel from "../models/airtime.model";

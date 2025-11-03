@@ -1,3 +1,11 @@
+/**
+ * @deprecated This file is deprecated. OTOBill controller has been replaced by Aychindodata controller.
+ * This file is kept for reference only. Use src/controllers/aychindodata.controller.ts instead.
+ * 
+ * Migration completed: All functionality has been moved to Aychindodata API.
+ * This file will be removed in a future version.
+ */
+
 import { Request, Response, NextFunction } from "express";
 import otobillService from "../services/otobill.service";
 import DataPlanModel from "../models/dataPlan.model";
