@@ -10,7 +10,8 @@ export interface AychindodataConfig {
   baseURL: string;
   username: string;
   password: string;
-  accessToken?: string;
+  staticToken?: string; // Static token from dashboard (optional)
+  accessToken?: string; // Dynamically generated token
 }
 
 export interface AychindodataUserInfo {
@@ -72,10 +73,13 @@ class AychindodataAPI {
   private client: AxiosInstance;
 
   constructor() {
+    const staticToken = process.env.AYCHINDODATA_TOKEN;
+    
     this.config = {
       baseURL: process.env.AYCHINDODATA_BASE_URL || "https://aychindodata.com/api",
       username: process.env.AYCHINDODATA_USERNAME || "",
       password: process.env.AYCHINDODATA_PASSWORD || "",
+      ...(staticToken && { staticToken }), // Only include if provided
     };
 
     this.client = axios.create({
@@ -121,25 +125,43 @@ class AychindodataAPI {
 
   /**
    * Get or refresh access token
+   * Uses Basic Auth with username/password to get token via POST /api/user
+   * Caches the token for subsequent API calls
    */
   private async getAccessToken(): Promise<string> {
     try {
+      // If we already have a cached token, return it
+      if (this.config.accessToken) {
+        return this.config.accessToken;
+      }
+
+      // If static token is provided, use it directly
+      if (this.config.staticToken) {
+        return this.config.staticToken;
+      }
+
+      // Otherwise, use Basic Auth to get token dynamically
       if (!this.config.username || !this.config.password) {
         throw new APIError(
-          "Aychindodata username and password are required",
+          "Aychindodata credentials required. Please set AYCHINDODATA_USERNAME and AYCHINDODATA_PASSWORD in your .env file",
           HttpStatus.INTERNAL_SERVER_ERROR
         );
       }
 
-      // Generate Basic Auth token
+      // Generate Basic Auth token (base64 encoded username:password)
       const credentials = `${this.config.username}:${this.config.password}`;
       const base64Credentials = Buffer.from(credentials).toString("base64");
 
-      const response = await this.client.get<AychindodataUserInfo>("/user", {
-        headers: {
-          Authorization: `Basic ${base64Credentials}`,
-        },
-      });
+      // POST /api/user with Basic Auth to get token
+      const response = await this.client.post<AychindodataUserInfo>(
+        "/user",
+        {}, // Empty body as per docs
+        {
+          headers: {
+            Authorization: `Basic ${base64Credentials}`,
+          },
+        }
+      );
 
       if (response.data.status !== "success") {
         throw new APIError(
@@ -148,6 +170,7 @@ class AychindodataAPI {
         );
       }
 
+      // Cache the token for future use
       this.config.accessToken = response.data.AccessToken;
       return this.config.accessToken;
     } catch (error: any) {
@@ -163,25 +186,66 @@ class AychindodataAPI {
 
   /**
    * Get user info and wallet balance
+   * Always uses POST /api/user with Basic Auth (username:password)
+   * Returns user info including AccessToken
    */
   async getUserInfo(): Promise<AychindodataUserInfo> {
     try {
-      const token = await this.getAccessToken();
+      // Always use Basic Auth with username/password
+      if (!this.config.username || !this.config.password) {
+        throw new APIError(
+          "Aychindodata credentials required. Please set AYCHINDODATA_USERNAME and AYCHINDODATA_PASSWORD in your .env file",
+          HttpStatus.INTERNAL_SERVER_ERROR
+        );
+      }
 
-      const response = await this.client.get<AychindodataUserInfo>("/user", {
-        headers: {
-          Authorization: `Token ${token}`,
-        },
-      });
+      // Generate Basic Auth token (base64 encoded username:password)
+      const credentials = `${this.config.username}:${this.config.password}`;
+      const base64Credentials = Buffer.from(credentials).toString("base64");
+
+      // POST /api/user with Basic Auth returns token and user info
+      const response = await this.client.post<AychindodataUserInfo>(
+        "/user",
+        {}, // Empty body as per docs
+        {
+          headers: {
+            Authorization: `Basic ${base64Credentials}`,
+          },
+        }
+      );
+
+      if (response.data.status !== "success") {
+        throw new APIError(
+          `Failed to get Aychindodata user info: ${response.data.status || "Unknown error"}`,
+          HttpStatus.UNAUTHORIZED
+        );
+      }
+
+      // Store the token for future use (for buyAirtime and buyData)
+      this.config.accessToken = response.data.AccessToken;
 
       return response.data;
     } catch (error: any) {
       logger.error("Failed to get Aychindodata user info:", error);
+      
+      // Extract error message from response
+      let errorMessage = "Failed to get Aychindodata user info";
+      if (error.response?.data) {
+        const responseData = error.response.data;
+        if (responseData.message) {
+          errorMessage += `: ${responseData.message}`;
+        } else if (responseData.status && responseData.status !== "success") {
+          errorMessage += `: ${responseData.status}`;
+        } else if (typeof responseData === "string") {
+          errorMessage += `: ${responseData}`;
+        }
+      } else if (error.message) {
+        errorMessage += `: ${error.message}`;
+      }
+
       throw new APIError(
-        `Failed to get Aychindodata user info: ${
-          error.response?.data?.message || error.message
-        }`,
-        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
+        errorMessage,
+        error.response?.status || error.statusCode || HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
@@ -281,13 +345,14 @@ class AychindodataAPI {
 
   /**
    * Check if API is properly configured
+   * Can use either static token OR username/password
    */
   isConfigured(): boolean {
     const hasBaseURL = this.config.baseURL !== "";
-    const hasUsername = this.config.username !== "";
-    const hasPassword = this.config.password !== "";
+    const hasStaticToken = !!this.config.staticToken;
+    const hasCredentials = this.config.username !== "" && this.config.password !== "";
 
-    return hasBaseURL && hasUsername && hasPassword;
+    return hasBaseURL && (hasStaticToken || hasCredentials);
   }
 
   /**
@@ -295,13 +360,17 @@ class AychindodataAPI {
    */
   getConfig(): {
     baseURL: string;
+    hasStaticToken: boolean;
     hasUsername: boolean;
     hasPassword: boolean;
+    usingStaticToken: boolean;
   } {
     return {
       baseURL: this.config.baseURL,
+      hasStaticToken: !!this.config.staticToken,
       hasUsername: !!this.config.username,
       hasPassword: !!this.config.password,
+      usingStaticToken: !!this.config.staticToken,
     };
   }
 }

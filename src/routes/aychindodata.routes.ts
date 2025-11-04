@@ -19,5 +19,10 @@ router.get("/health", (req, res, next) =>
   aychindodataController.healthCheck(req, res, next)
 );
 
+// Debug endpoint (admin only) - to test Aychindodata connection
+router.get("/debug", authenticateAdmin, (req, res, next) =>
+  aychindodataController.debugConnection(req, res, next)
+);
+
 export default router;
 

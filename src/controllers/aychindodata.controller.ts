@@ -48,8 +48,52 @@ class AychindodataController {
         aychindodata: {
           configured: isConfigured,
           baseURL: config.baseURL,
+          usingStaticToken: config.usingStaticToken,
+          hasStaticToken: config.hasStaticToken,
           hasUsername: config.hasUsername,
           hasPassword: config.hasPassword,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // Debug endpoint to test Aychindodata connection
+  async debugConnection(req: Request, res: Response, next: NextFunction) {
+    try {
+      const config = aychindodataService.getConfig();
+      
+      // Try to get user info and see what happens
+      let userInfo = null;
+      let errorDetails = null;
+      
+      try {
+        userInfo = await aychindodataService.getUserInfo();
+      } catch (error: any) {
+        errorDetails = {
+          message: error.message,
+          statusCode: error.statusCode,
+          responseStatus: error.response?.status,
+          responseData: error.response?.data,
+          responseStatusText: error.response?.statusText,
+        };
+      }
+
+      res.status(HttpStatus.OK).json({
+        success: true,
+        message: "Aychindodata debug information",
+        config: {
+          baseURL: config.baseURL,
+          usingStaticToken: config.usingStaticToken,
+          hasStaticToken: config.hasStaticToken,
+          hasUsername: config.hasUsername,
+          hasPassword: config.hasPassword,
+        },
+        connectionTest: {
+          success: !!userInfo,
+          userInfo: userInfo,
+          error: errorDetails,
         },
       });
     } catch (error) {
