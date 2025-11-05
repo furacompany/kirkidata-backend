@@ -3,6 +3,7 @@ import logger from "../utils/logger";
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
 import { getAllNetworkNames } from "../utils/networkMapping";
+import AirtimeModel from "../models/airtime.model";
 
 class AychindodataService {
   /**
@@ -120,6 +121,65 @@ class AychindodataService {
    */
   getConfig() {
     return aychindodataAPI.getConfig();
+  }
+
+  /**
+   * Sync networks to database
+   * Creates Airtime records for all supported networks if they don't exist
+   */
+  async syncNetworks() {
+    try {
+      const networkNames = getAllNetworkNames();
+      let totalSynced = 0;
+      let totalCreated = 0;
+      let totalUpdated = 0;
+
+      for (const networkName of networkNames) {
+        try {
+          const existingAirtime = await AirtimeModel.findOne({
+            networkName: networkName,
+          });
+
+          if (existingAirtime) {
+            // Update existing network (ensure it's active)
+            if (!existingAirtime.isActive) {
+              existingAirtime.isActive = true;
+              await existingAirtime.save();
+              totalUpdated++;
+            }
+          } else {
+            // Create new network record
+            const newAirtime = new AirtimeModel({
+              networkName: networkName,
+              originalPrice: 0, // Airtime usually has no markup from Aychindodata
+              adminPrice: 0, // No markup for airtime initially
+              isActive: true,
+            });
+
+            await newAirtime.save();
+            totalCreated++;
+          }
+
+          totalSynced++;
+        } catch (networkError) {
+          logger.error(
+            `Failed to sync network ${networkName}:`,
+            networkError
+          );
+        }
+      }
+
+      return {
+        totalSynced,
+        totalCreated,
+        totalUpdated,
+        networks: networkNames,
+        message: `Networks sync completed. Created: ${totalCreated}, Updated: ${totalUpdated}`,
+      };
+    } catch (error) {
+      logger.error("Failed to sync networks:", error);
+      throw error;
+    }
   }
 }
 

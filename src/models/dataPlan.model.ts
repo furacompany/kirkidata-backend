@@ -3,8 +3,7 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IDataPlan extends Document {
   _id: mongoose.Types.ObjectId;
   customId: string; // e.g., PLAN_1, PLAN_2
-  aychindodataId: number; // Aychindodata's numeric plan ID (required for API calls)
-  planId: string; // Plan ID as string identifier (optional, for reference)
+  planId: string; // Aychindodata plan ID (e.g., "9", "7", "8") - used for both DB and API calls
   name: string;
   networkName: string;
   planType: string;
@@ -25,13 +24,10 @@ const dataPlanSchema = new Schema<IDataPlan>(
       unique: true,
       trim: true,
     },
-    aychindodataId: {
-      type: Number,
-      required: [true, "Aychindodata plan ID is required"],
-    },
     planId: {
       type: String,
-      required: false, // Optional string identifier
+      required: [true, "Plan ID (Aychindodata plan ID) is required"],
+      unique: true,
       trim: true,
     },
     name: {
@@ -81,8 +77,7 @@ const dataPlanSchema = new Schema<IDataPlan>(
 
 // Indexes
 dataPlanSchema.index({ customId: 1 }, { unique: true });
-dataPlanSchema.index({ aychindodataId: 1 }, { unique: true });
-dataPlanSchema.index({ planId: 1 });
+dataPlanSchema.index({ planId: 1 }, { unique: true }); // Ensure planId is unique
 dataPlanSchema.index({ networkName: 1 });
 dataPlanSchema.index({ planType: 1 });
 dataPlanSchema.index({ isActive: 1 });

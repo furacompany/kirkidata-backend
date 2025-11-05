@@ -3,6 +3,7 @@ import logger from "../utils/logger";
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
 import { isValidNetworkName } from "../utils/networkMapping";
+import mongoose from "mongoose";
 
 export interface CreateDataPlanData {
   name: string;
@@ -10,10 +11,9 @@ export interface CreateDataPlanData {
   planType: string;
   dataSize: string;
   validityDays: number;
-  aychindodataId: number;
   originalPrice?: number;
   adminPrice: number;
-  planId?: string;
+  planId: string; // Required - Aychindodata plan ID (e.g., "9", "7", "8") - used for both DB and API calls
   isActive?: boolean;
 }
 
@@ -23,7 +23,6 @@ export interface UpdateDataPlanData {
   planType?: string;
   dataSize?: string;
   validityDays?: number;
-  aychindodataId?: number;
   originalPrice?: number;
   adminPrice?: number;
   planId?: string;
@@ -50,14 +49,21 @@ class DataPlanService {
         );
       }
 
-      // Check if aychindodataId already exists
+      // Check if planId already exists (required and must be unique)
+      if (!data.planId || data.planId.trim() === "") {
+        throw new APIError(
+          "Plan ID (Aychindodata plan ID) is required",
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
       const existingPlan = await DataPlanModel.findOne({
-        aychindodataId: data.aychindodataId,
+        planId: data.planId.trim(),
       });
 
       if (existingPlan) {
         throw new APIError(
-          `Data plan with Aychindodata ID ${data.aychindodataId} already exists`,
+          `Data plan with Plan ID "${data.planId}" already exists`,
           HttpStatus.CONFLICT
         );
       }
@@ -69,6 +75,7 @@ class DataPlanService {
 
       const dataPlan = new DataPlanModel({
         ...data,
+        planId: data.planId.trim(), // Ensure trimmed planId
         customId,
         isActive: data.isActive !== undefined ? data.isActive : true,
       });
@@ -133,11 +140,27 @@ class DataPlanService {
   }
 
   /**
-   * Get data plan by ID
+   * Get data plan by ID (MongoDB _id or planId)
    */
   async getDataPlanById(id: string): Promise<IDataPlan> {
     try {
-      const dataPlan = await DataPlanModel.findById(id);
+      let dataPlan;
+
+      // Check if id is a valid MongoDB ObjectId
+      const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
+      
+      if (isValidObjectId) {
+        // Try to find by MongoDB _id first
+        dataPlan = await DataPlanModel.findById(id);
+      }
+      
+      // If not found by _id, try by planId
+      if (!dataPlan) {
+        dataPlan = await DataPlanModel.findOne({
+          planId: id,
+          isActive: true,
+        });
+      }
 
       if (!dataPlan) {
         throw new APIError("Data plan not found", HttpStatus.NOT_FOUND);
@@ -150,33 +173,31 @@ class DataPlanService {
     }
   }
 
-  /**
-   * Get data plan by Aychindodata ID
-   */
-  async getDataPlanByAychindodataId(
-    aychindodataId: number
-  ): Promise<IDataPlan | null> {
-    try {
-      const dataPlan = await DataPlanModel.findOne({ aychindodataId });
-      return dataPlan;
-    } catch (error) {
-      logger.error(
-        "Failed to get data plan by Aychindodata ID:",
-        error
-      );
-      throw error;
-    }
-  }
 
   /**
-   * Update data plan
+   * Update data plan by ID (MongoDB _id or planId)
    */
   async updateDataPlan(
     id: string,
     data: UpdateDataPlanData
   ): Promise<IDataPlan> {
     try {
-      const dataPlan = await DataPlanModel.findById(id);
+      let dataPlan;
+
+      // Check if id is a valid MongoDB ObjectId
+      const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
+      
+      if (isValidObjectId) {
+        // Try to find by MongoDB _id first
+        dataPlan = await DataPlanModel.findById(id);
+      }
+      
+      // If not found by _id, try by planId
+      if (!dataPlan) {
+        dataPlan = await DataPlanModel.findOne({
+          planId: id,
+        });
+      }
 
       if (!dataPlan) {
         throw new APIError("Data plan not found", HttpStatus.NOT_FOUND);
@@ -190,20 +211,29 @@ class DataPlanService {
         );
       }
 
-      // Check if aychindodataId is being changed and if it conflicts
-      if (
-        data.aychindodataId &&
-        data.aychindodataId !== dataPlan.aychindodataId
-      ) {
-        const existingPlan = await DataPlanModel.findOne({
-          aychindodataId: data.aychindodataId,
-        });
-
-        if (existingPlan) {
+      // Check if planId is being changed and if it conflicts
+      if (data.planId !== undefined) {
+        const trimmedPlanId = data.planId.trim();
+        
+        if (trimmedPlanId === "") {
           throw new APIError(
-            `Data plan with Aychindodata ID ${data.aychindodataId} already exists`,
-            HttpStatus.CONFLICT
+            "Plan ID cannot be empty",
+            HttpStatus.BAD_REQUEST
           );
+        }
+
+        // Check if the new planId conflicts with another plan
+        if (trimmedPlanId !== dataPlan.planId) {
+          const existingPlan = await DataPlanModel.findOne({
+            planId: trimmedPlanId,
+          });
+
+          if (existingPlan) {
+            throw new APIError(
+              `Data plan with Plan ID "${trimmedPlanId}" already exists`,
+              HttpStatus.CONFLICT
+            );
+          }
         }
       }
 
@@ -214,12 +244,10 @@ class DataPlanService {
       if (data.dataSize !== undefined) dataPlan.dataSize = data.dataSize;
       if (data.validityDays !== undefined)
         dataPlan.validityDays = data.validityDays;
-      if (data.aychindodataId !== undefined)
-        dataPlan.aychindodataId = data.aychindodataId;
       if (data.originalPrice !== undefined)
         dataPlan.originalPrice = data.originalPrice;
       if (data.adminPrice !== undefined) dataPlan.adminPrice = data.adminPrice;
-      if (data.planId !== undefined) dataPlan.planId = data.planId;
+      if (data.planId !== undefined) dataPlan.planId = data.planId.trim();
       if (data.isActive !== undefined) dataPlan.isActive = data.isActive;
 
       await dataPlan.save();
@@ -234,10 +262,26 @@ class DataPlanService {
 
   /**
    * Delete data plan (soft delete - set isActive to false)
+   * Can be deleted by MongoDB _id or planId
    */
   async deleteDataPlan(id: string): Promise<void> {
     try {
-      const dataPlan = await DataPlanModel.findById(id);
+      let dataPlan;
+
+      // Check if id is a valid MongoDB ObjectId
+      const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
+      
+      if (isValidObjectId) {
+        // Try to find by MongoDB _id first
+        dataPlan = await DataPlanModel.findById(id);
+      }
+      
+      // If not found by _id, try by planId
+      if (!dataPlan) {
+        dataPlan = await DataPlanModel.findOne({
+          planId: id,
+        });
+      }
 
       if (!dataPlan) {
         throw new APIError("Data plan not found", HttpStatus.NOT_FOUND);

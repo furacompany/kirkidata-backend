@@ -100,6 +100,21 @@ class AychindodataController {
       next(error);
     }
   }
+
+  // Sync networks to database
+  async syncNetworks(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await aychindodataService.syncNetworks();
+
+      res.status(HttpStatus.OK).json({
+        success: true,
+        message: "Networks synced successfully",
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new AychindodataController();

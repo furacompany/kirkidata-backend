@@ -26,10 +26,12 @@ export const createDataPlanSchema = Joi.object({
         "Data size must be in format like '1GB', '500MB', '2.5GB'",
     }),
   validityDays: Joi.number().integer().min(1).required(),
-  aychindodataId: Joi.number().integer().positive().required(),
   originalPrice: Joi.number().min(0).optional(),
   adminPrice: Joi.number().min(0).required(),
-  planId: Joi.string().trim().optional(),
+  planId: Joi.string().trim().required().messages({
+    "any.required": "Plan ID (Aychindodata plan ID) is required",
+    "string.empty": "Plan ID cannot be empty",
+  }),
   isActive: Joi.boolean().optional(),
 });
 
@@ -58,10 +60,11 @@ export const updateDataPlanSchema = Joi.object({
     })
     .optional(),
   validityDays: Joi.number().integer().min(1).optional(),
-  aychindodataId: Joi.number().integer().positive().optional(),
   originalPrice: Joi.number().min(0).optional(),
   adminPrice: Joi.number().min(0).optional(),
-  planId: Joi.string().trim().optional(),
+  planId: Joi.string().trim().optional().messages({
+    "string.empty": "Plan ID cannot be empty",
+  }),
   isActive: Joi.boolean().optional(),
 });
 

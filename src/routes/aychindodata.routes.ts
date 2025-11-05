@@ -24,5 +24,10 @@ router.get("/debug", authenticateAdmin, (req, res, next) =>
   aychindodataController.debugConnection(req, res, next)
 );
 
+// Sync networks to database (admin only)
+router.post("/sync/networks", authenticateAdmin, (req, res, next) =>
+  aychindodataController.syncNetworks(req, res, next)
+);
+
 export default router;
 

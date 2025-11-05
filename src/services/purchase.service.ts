@@ -6,6 +6,7 @@ import UserModel from "../models/user.model";
 import logger from "../utils/logger";
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
+import mongoose from "mongoose";
 
 class PurchaseService {
   // Get available networks for users
@@ -16,7 +17,7 @@ class PurchaseService {
       });
 
       const networks = airtimeRecords.map((record) => ({
-        id: record._id.toString(),
+        id: record.networkName, // Use network name as ID (MTN, AIRTEL, etc.)
         name: record.networkName,
         status: "On",
         isActive: record.isActive,
@@ -87,8 +88,7 @@ class PurchaseService {
 
       const plans = dataPlans.map((plan) => ({
         id: plan._id.toString(), // Use MongoDB _id as identifier
-        aychindodataId: plan.aychindodataId, // Aychindodata numeric plan ID
-        planId: plan.planId, // Optional string identifier
+        planId: plan.planId, // Aychindodata plan ID (e.g., "9", "7", "8")
         name: plan.name,
         networkName: plan.networkName,
         planType: plan.planType,
@@ -158,8 +158,7 @@ class PurchaseService {
 
       const plans = dataPlans.map((plan) => ({
         id: plan._id.toString(), // Use MongoDB _id as identifier
-        aychindodataId: plan.aychindodataId, // Aychindodata numeric plan ID
-        planId: plan.planId, // Optional string identifier
+        planId: plan.planId, // Aychindodata plan ID (e.g., "9", "7", "8")
         name: plan.name,
         networkName: plan.networkName,
         planType: plan.planType,
@@ -281,7 +280,8 @@ class PurchaseService {
         // Calculate profit: User paid totalCost, Aychindodata charged amount (with discount)
         // The response shows: amount (requested), discount, and newbal (balance after)
         // Actual cost = amount - discount (or we can use: oldbal - newbal)
-        const actualCost = aychindodataResponse.amount - (aychindodataResponse.discount || 0);
+        const actualCost =
+          aychindodataResponse.amount - (aychindodataResponse.discount || 0);
         const profit = totalCost - actualCost;
 
         // Update transaction with Aychindodata response
@@ -291,7 +291,8 @@ class PurchaseService {
         if (!transaction.metadata) {
           transaction.metadata = {};
         }
-        transaction.metadata.aychindodataRequestId = aychindodataResponse["request-id"];
+        transaction.metadata.aychindodataRequestId =
+          aychindodataResponse["request-id"];
         transaction.metadata.aychindodataStatus = aychindodataResponse.status;
         transaction.metadata.aychindodataResponse = aychindodataResponse;
         transaction.metadata.actualAychindodataCost = actualCost;
@@ -341,9 +342,13 @@ class PurchaseService {
 
         await transaction.save();
 
-        logger.error("Aychindodata airtime purchase failed:", aychindodataError);
+        logger.error(
+          "Aychindodata airtime purchase failed:",
+          aychindodataError
+        );
         throw new APIError(
-          aychindodataError.message || "Airtime purchase failed. Your wallet has been refunded.",
+          aychindodataError.message ||
+            "Airtime purchase failed. Your wallet has been refunded.",
           HttpStatus.INTERNAL_SERVER_ERROR
         );
       }
@@ -362,21 +367,24 @@ class PurchaseService {
         throw new APIError("User not found", HttpStatus.NOT_FOUND);
       }
 
-      // Get data plan by MongoDB _id or aychindodataId
+      // Get data plan by MongoDB _id or planId (Aychindodata plan ID)
       let dataPlan;
-      if (data.planId) {
+      if (!data.planId) {
+        throw new APIError("planId is required", HttpStatus.BAD_REQUEST);
+      }
+
+      // Check if planId is a valid MongoDB ObjectId format (24 hex characters)
+      const isValidObjectId = mongoose.Types.ObjectId.isValid(data.planId);
+
+      if (isValidObjectId) {
         // Try to find by MongoDB _id first
         dataPlan = await DataPlanModel.findById(data.planId);
-        // If not found, try by aychindodataId (assuming it was passed as string)
-        if (!dataPlan && !isNaN(Number(data.planId))) {
-          dataPlan = await DataPlanModel.findOne({
-            aychindodataId: Number(data.planId),
-            isActive: true,
-          });
-        }
-      } else if (data.aychindodataId) {
+      }
+
+      // If not found by _id, try by planId field (Aychindodata plan ID like "9", "7", "8", etc.)
+      if (!dataPlan) {
         dataPlan = await DataPlanModel.findOne({
-          aychindodataId: data.aychindodataId,
+          planId: data.planId,
           isActive: true,
         });
       }
@@ -413,7 +421,7 @@ class PurchaseService {
         description: `${dataPlan.name} for ${data.phoneNumber}`,
         networkName: dataPlan.networkName,
         phoneNumber: data.phoneNumber,
-        planId: dataPlan.planId || dataPlan.aychindodataId.toString(),
+        planId: dataPlan.planId,
         planName: dataPlan.name,
         profit: dataPlan.adminPrice - (dataPlan.originalPrice || 0), // Handle undefined case
       });
@@ -421,11 +429,21 @@ class PurchaseService {
       await transaction.save();
 
       try {
-        // Call Aychindodata API using the numeric plan ID
+        // Call Aychindodata API using the planId (convert to number for API)
+        // The planId from our DB matches Aychindodata's plan ID (e.g., "9" -> 9)
+        const aychindodataPlanId = Number(dataPlan.planId);
+
+        if (isNaN(aychindodataPlanId)) {
+          throw new APIError(
+            `Invalid plan ID: "${dataPlan.planId}". Plan ID must be a numeric value.`,
+            HttpStatus.BAD_REQUEST
+          );
+        }
+
         const aychindodataResponse = await aychindodataService.buyData(
           dataPlan.networkName,
           data.phoneNumber,
-          dataPlan.aychindodataId,
+          aychindodataPlanId,
           requestId
         );
 
@@ -440,7 +458,8 @@ class PurchaseService {
         if (!transaction.metadata) {
           transaction.metadata = {};
         }
-        transaction.metadata.aychindodataRequestId = aychindodataResponse["request-id"];
+        transaction.metadata.aychindodataRequestId =
+          aychindodataResponse["request-id"];
         transaction.metadata.aychindodataStatus = aychindodataResponse.status;
         transaction.metadata.aychindodataResponse = aychindodataResponse;
         transaction.metadata.actualAychindodataCost = actualCost;
@@ -470,7 +489,7 @@ class PurchaseService {
           description: transaction.description,
           networkName: dataPlan.networkName,
           phoneNumber: data.phoneNumber,
-          planId: dataPlan.planId || dataPlan.aychindodataId.toString(),
+          planId: dataPlan.planId,
           planName: dataPlan.name,
           dataSize: dataPlan.dataSize,
           requestId: aychindodataResponse["request-id"],
@@ -492,7 +511,8 @@ class PurchaseService {
 
         logger.error("Aychindodata data purchase failed:", aychindodataError);
         throw new APIError(
-          aychindodataError.message || "Data purchase failed. Your wallet has been refunded.",
+          aychindodataError.message ||
+            "Data purchase failed. Your wallet has been refunded.",
           HttpStatus.INTERNAL_SERVER_ERROR
         );
       }

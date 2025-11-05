@@ -357,7 +357,7 @@ class OtoBillController {
         adminPrice: plan.adminPrice,
         profit: plan.adminPrice - (plan.originalPrice || 0), // Handle undefined case
         isActive: plan.isActive,
-        lastSynced: plan.lastSynced,
+        // lastSynced: removed - no longer used
       }));
 
       // Count active and inactive plans for summary
@@ -406,7 +406,7 @@ class OtoBillController {
         originalPrice: item.originalPrice,
         adminPrice: item.adminPrice,
         markup: item.adminPrice - item.originalPrice,
-        lastSynced: item.lastSynced,
+        // lastSynced: removed - no longer used
       }));
 
       res.status(HttpStatus.OK).json({

@@ -105,7 +105,7 @@ class OtoBillService {
 
       const plans = dataPlans.map((plan) => ({
         planId: plan.planId,
-        id: plan.otobillId,
+        id: plan.planId, // Use planId instead of deprecated otobillId
         name: plan.name,
         networkName: plan.networkName,
         planType: plan.planType,
@@ -176,7 +176,7 @@ class OtoBillService {
 
       const plans = dataPlans.map((plan) => ({
         planId: plan.planId,
-        id: plan.otobillId,
+        id: plan.planId, // Use planId instead of deprecated otobillId
         name: plan.name,
         networkName: plan.networkName,
         planType: plan.planType,
@@ -224,7 +224,7 @@ class OtoBillService {
       // Get all current plans to track which ones are no longer available
       const allCurrentPlans = await DataPlanModel.find({});
       const currentPlanIds = new Set(
-        allCurrentPlans.map((plan) => plan.otobillId)
+        allCurrentPlans.map((plan) => plan.planId) // Use planId instead of deprecated otobillId
       );
       const syncedPlanIds = new Set<string>();
 
@@ -261,9 +261,9 @@ class OtoBillService {
 
               for (const plan of dataPlans.plans) {
                 try {
-                  // Check if plan already exists
+                  // Check if plan already exists (using planId since otobillId is deprecated)
                   const existingPlan = await DataPlanModel.findOne({
-                    otobillId: plan.id,
+                    planId: plan.planId || plan.id.toString(),
                   });
 
                   if (existingPlan) {
@@ -288,7 +288,7 @@ class OtoBillService {
 
                     // Ensure the plan is active since it's available from OtoBill
                     existingPlan.isActive = true;
-                    existingPlan.lastSynced = new Date();
+                    // lastSynced: removed - no longer used
 
                     await existingPlan.save();
                     totalUpdated++;
@@ -300,8 +300,7 @@ class OtoBillService {
 
                     const newPlan = new DataPlanModel({
                       customId,
-                      otobillId: plan.id,
-                      planId: plan.planId,
+                      planId: plan.planId || plan.id.toString(), // Use planId instead of deprecated otobillId
                       name: plan.name,
                       networkName: plan.networkName,
                       planType: plan.planType,
@@ -309,7 +308,7 @@ class OtoBillService {
                       originalPrice: plan.price,
                       adminPrice: plan.price, // Set admin price same as OtoBill price initially
                       isActive: true, // Set to active by default
-                      lastSynced: new Date(),
+                      // lastSynced: removed - no longer used
                     });
 
                     await newPlan.save();
@@ -347,9 +346,9 @@ class OtoBillService {
               // Only process if we haven't already synced this plan
               if (!syncedPlanIds.has(plan.id)) {
                 try {
-                  // Check if plan already exists
+                  // Check if plan already exists (using planId since otobillId is deprecated)
                   const existingPlan = await DataPlanModel.findOne({
-                    otobillId: plan.id,
+                    planId: plan.planId || plan.id.toString(),
                   });
 
                   if (existingPlan) {
@@ -374,7 +373,7 @@ class OtoBillService {
 
                     // Ensure the plan is active since it's available from OtoBill
                     existingPlan.isActive = true;
-                    existingPlan.lastSynced = new Date();
+                    // lastSynced: removed - no longer used
 
                     await existingPlan.save();
                     totalUpdated++;
@@ -386,8 +385,7 @@ class OtoBillService {
 
                     const newPlan = new DataPlanModel({
                       customId,
-                      otobillId: plan.id,
-                      planId: plan.planId,
+                      planId: plan.planId || plan.id.toString(), // Use planId instead of deprecated otobillId
                       name: plan.name,
                       networkName: plan.networkName,
                       planType: plan.planType,
@@ -395,7 +393,7 @@ class OtoBillService {
                       originalPrice: plan.price,
                       adminPrice: plan.price, // Set admin price same as OtoBill price initially
                       isActive: true, // Set to active by default
-                      lastSynced: new Date(),
+                      // lastSynced: removed - no longer used
                     });
 
                     await newPlan.save();
@@ -429,10 +427,10 @@ class OtoBillService {
         if (!syncedPlanIds.has(planId)) {
           try {
             await DataPlanModel.updateOne(
-              { otobillId: planId },
+              { planId: planId }, // Use planId instead of deprecated otobillId
               {
                 isActive: false,
-                lastSynced: new Date(),
+                // lastSynced: removed - no longer used
               }
             );
             totalDeactivated++;
@@ -487,7 +485,7 @@ class OtoBillService {
             // Update existing airtime pricing
             existingAirtime.originalPrice = 0; // Airtime usually has no markup from OtoBill
             // Don't update adminPrice - let admin keep their custom pricing
-            existingAirtime.lastSynced = new Date();
+            // lastSynced: removed - no longer used
 
             await existingAirtime.save();
             totalUpdated++;
@@ -498,7 +496,7 @@ class OtoBillService {
               originalPrice: 0, // Airtime usually has no markup from OtoBill
               adminPrice: 0, // No markup for airtime initially
               isActive: network.isActive,
-              lastSynced: new Date(),
+              // lastSynced: removed - no longer used
             });
 
             await newAirtime.save();
