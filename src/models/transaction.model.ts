@@ -11,11 +11,11 @@ export interface ITransaction extends Document {
   amount: number;
   currency: string;
   status: "pending" | "completed" | "failed" | "cancelled";
-  reference: string; // BillStack transaction reference or OtoBill reference
+  reference: string; // BillStack transaction reference, OtoBill reference, or Aychindodata request-id
   wiaxyRef?: string; // BillStack inter-bank reference
   merchantReference?: string; // Our internal reference
   description?: string;
-  // OtoBill specific fields
+  // DEPRECATED: OtoBill specific fields (kept for backward compatibility)
   otobillRef?: string; // OtoBill transaction reference
   networkName?: string; // For airtime/data transactions
   phoneNumber?: string; // For airtime/data transactions
@@ -29,12 +29,20 @@ export interface ITransaction extends Document {
     bankName?: string;
     accountNumber?: string;
     accountName?: string;
-    // OtoBill specific metadata
+    // DEPRECATED: OtoBill specific metadata (kept for backward compatibility)
     otobillTransactionId?: string;
     otobillStatus?: string;
     otobillResponse?: any;
     actualOtoBillCost?: number;
     calculatedProfit?: number;
+    // Aychindodata specific metadata
+    aychindodataRequestId?: string; // Aychindodata request-id from API response
+    aychindodataStatus?: string; // "success" or "failed"
+    aychindodataResponse?: any; // Full Aychindodata API response
+    actualAychindodataCost?: number; // Actual cost charged by Aychindodata
+    oldBalance?: string; // Aychindodata wallet balance before transaction
+    newBalance?: number; // Aychindodata wallet balance after transaction
+    dataplan?: string; // Data plan name from Aychindodata response (for data purchases)
     // Charge specific metadata
     chargeAmount?: number; // The charge deducted from funding
     originalFundingAmount?: number; // The original funding amount before charge
@@ -96,7 +104,7 @@ const transactionSchema = new Schema<ITransaction>(
     description: {
       type: String,
     },
-    // OtoBill specific fields
+    // DEPRECATED: OtoBill specific fields (kept for backward compatibility)
     otobillRef: {
       type: String,
       sparse: true,
@@ -129,12 +137,20 @@ const transactionSchema = new Schema<ITransaction>(
       bankName: String,
       accountNumber: String,
       accountName: String,
-      // OtoBill specific metadata
+      // DEPRECATED: OtoBill specific metadata (kept for backward compatibility)
       otobillTransactionId: String,
       otobillStatus: String,
       otobillResponse: Schema.Types.Mixed,
       actualOtoBillCost: Number,
       calculatedProfit: Number,
+      // Aychindodata specific metadata
+      aychindodataRequestId: String,
+      aychindodataStatus: String,
+      aychindodataResponse: Schema.Types.Mixed,
+      actualAychindodataCost: Number,
+      oldBalance: String,
+      newBalance: Number,
+      dataplan: String,
       // Charge specific metadata
       chargeAmount: Number,
       originalFundingAmount: Number,
@@ -151,7 +167,7 @@ transactionSchema.index({ virtualAccountId: 1 });
 transactionSchema.index({ relatedTransactionId: 1 }, { sparse: true });
 transactionSchema.index({ reference: 1 }); // Remove unique constraint from reference
 transactionSchema.index({ wiaxyRef: 1 }, { unique: true, sparse: true }); // Make wiaxyRef unique
-transactionSchema.index({ otobillRef: 1 }, { sparse: true }); // OtoBill reference
+transactionSchema.index({ otobillRef: 1 }, { sparse: true }); // DEPRECATED: OtoBill reference
 transactionSchema.index({ status: 1 });
 transactionSchema.index({ type: 1 });
 transactionSchema.index({ networkName: 1 }); // For airtime/data transactions

@@ -1,3 +1,11 @@
+/**
+ * @deprecated This file is deprecated. OTOBill integration has been replaced by Aychindodata.
+ * This file is kept for reference only. Use src/configs/aychindodata.ts instead.
+ * 
+ * Migration completed: All functionality has been moved to Aychindodata API.
+ * This file will be removed in a future version.
+ */
+
 import dotenv from "dotenv";
 dotenv.config();
 import axios, { AxiosInstance } from "axios";

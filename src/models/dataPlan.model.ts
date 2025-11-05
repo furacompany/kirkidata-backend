@@ -3,16 +3,15 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IDataPlan extends Document {
   _id: mongoose.Types.ObjectId;
   customId: string; // e.g., PLAN_1, PLAN_2
-  otobillId: string; // OtoBill's internal ID
-  planId: string; // OtoBill's plan ID
+  planId: string; // Aychindodata plan ID (e.g., "9", "7", "8") - used for both DB and API calls
   name: string;
   networkName: string;
   planType: string;
+  dataSize: string; // e.g., "1GB", "500MB", "2GB"
   validityDays: number;
-  originalPrice?: number; // Price from OtoBill (optional during sync)
+  originalPrice?: number; // Original price from Aychindodata (optional)
   adminPrice: number; // Price set by admin (required for operations)
   isActive: boolean;
-  lastSynced: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,14 +24,10 @@ const dataPlanSchema = new Schema<IDataPlan>(
       unique: true,
       trim: true,
     },
-    otobillId: {
-      type: String,
-      required: [true, "OtoBill ID is required"],
-      trim: true,
-    },
     planId: {
       type: String,
-      required: [true, "Plan ID is required"],
+      required: [true, "Plan ID (Aychindodata plan ID) is required"],
+      unique: true,
       trim: true,
     },
     name: {
@@ -48,6 +43,11 @@ const dataPlanSchema = new Schema<IDataPlan>(
     planType: {
       type: String,
       required: [true, "Plan type is required"],
+      trim: true,
+    },
+    dataSize: {
+      type: String,
+      required: [true, "Data size is required"],
       trim: true,
     },
     validityDays: {
@@ -69,10 +69,6 @@ const dataPlanSchema = new Schema<IDataPlan>(
       type: Boolean,
       default: true,
     },
-    lastSynced: {
-      type: Date,
-      default: Date.now,
-    },
   },
   {
     timestamps: true,
@@ -81,11 +77,9 @@ const dataPlanSchema = new Schema<IDataPlan>(
 
 // Indexes
 dataPlanSchema.index({ customId: 1 }, { unique: true });
-dataPlanSchema.index({ otobillId: 1 });
-dataPlanSchema.index({ planId: 1 });
+dataPlanSchema.index({ planId: 1 }, { unique: true }); // Ensure planId is unique
 dataPlanSchema.index({ networkName: 1 });
 dataPlanSchema.index({ planType: 1 });
 dataPlanSchema.index({ isActive: 1 });
-dataPlanSchema.index({ lastSynced: -1 });
 
 export default mongoose.model<IDataPlan>("DataPlan", dataPlanSchema);

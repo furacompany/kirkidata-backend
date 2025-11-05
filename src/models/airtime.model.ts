@@ -3,10 +3,9 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IAirtime extends Document {
   _id: mongoose.Types.ObjectId;
   networkName: string;
-  originalPrice: number; // Price from OtoBill (usually 0 for airtime)
+  originalPrice: number; // Original price from Aychindodata (usually 0 for airtime)
   adminPrice: number; // Price set by admin (usually 0 for airtime)
   isActive: boolean;
-  lastSynced: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,10 +32,6 @@ const airtimeSchema = new Schema<IAirtime>(
       type: Boolean,
       default: true,
     },
-    lastSynced: {
-      type: Date,
-      default: Date.now,
-    },
   },
   {
     timestamps: true,
@@ -46,6 +41,5 @@ const airtimeSchema = new Schema<IAirtime>(
 // Indexes
 airtimeSchema.index({ networkName: 1 }, { unique: true });
 airtimeSchema.index({ isActive: 1 });
-airtimeSchema.index({ lastSynced: -1 });
 
 export default mongoose.model<IAirtime>("Airtime", airtimeSchema);
