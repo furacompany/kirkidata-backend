@@ -148,12 +148,12 @@ class DataPlanService {
 
       // Check if id is a valid MongoDB ObjectId
       const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
-      
+
       if (isValidObjectId) {
         // Try to find by MongoDB _id first
         dataPlan = await DataPlanModel.findById(id);
       }
-      
+
       // If not found by _id, try by planId
       if (!dataPlan) {
         dataPlan = await DataPlanModel.findOne({
@@ -173,7 +173,6 @@ class DataPlanService {
     }
   }
 
-
   /**
    * Update data plan by ID (MongoDB _id or planId)
    */
@@ -186,12 +185,12 @@ class DataPlanService {
 
       // Check if id is a valid MongoDB ObjectId
       const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
-      
+
       if (isValidObjectId) {
         // Try to find by MongoDB _id first
         dataPlan = await DataPlanModel.findById(id);
       }
-      
+
       // If not found by _id, try by planId
       if (!dataPlan) {
         dataPlan = await DataPlanModel.findOne({
@@ -214,12 +213,9 @@ class DataPlanService {
       // Check if planId is being changed and if it conflicts
       if (data.planId !== undefined) {
         const trimmedPlanId = data.planId.trim();
-        
+
         if (trimmedPlanId === "") {
-          throw new APIError(
-            "Plan ID cannot be empty",
-            HttpStatus.BAD_REQUEST
-          );
+          throw new APIError("Plan ID cannot be empty", HttpStatus.BAD_REQUEST);
         }
 
         // Check if the new planId conflicts with another plan
@@ -239,7 +235,8 @@ class DataPlanService {
 
       // Update fields
       if (data.name !== undefined) dataPlan.name = data.name;
-      if (data.networkName !== undefined) dataPlan.networkName = data.networkName;
+      if (data.networkName !== undefined)
+        dataPlan.networkName = data.networkName;
       if (data.planType !== undefined) dataPlan.planType = data.planType;
       if (data.dataSize !== undefined) dataPlan.dataSize = data.dataSize;
       if (data.validityDays !== undefined)
@@ -261,37 +258,40 @@ class DataPlanService {
   }
 
   /**
-   * Delete data plan (soft delete - set isActive to false)
+   * Delete data plan (hard delete - permanently remove from database)
    * Can be deleted by MongoDB _id or planId
    */
   async deleteDataPlan(id: string): Promise<void> {
     try {
       let dataPlan;
+      let deletedPlan;
 
       // Check if id is a valid MongoDB ObjectId
       const isValidObjectId = mongoose.Types.ObjectId.isValid(id);
-      
+
       if (isValidObjectId) {
-        // Try to find by MongoDB _id first
-        dataPlan = await DataPlanModel.findById(id);
+        // Try to delete by MongoDB _id first
+        deletedPlan = await DataPlanModel.findByIdAndDelete(id);
+        if (deletedPlan) {
+          dataPlan = deletedPlan;
+        }
       }
-      
+
       // If not found by _id, try by planId
-      if (!dataPlan) {
+      if (!deletedPlan) {
         dataPlan = await DataPlanModel.findOne({
           planId: id,
         });
+        if (dataPlan) {
+          deletedPlan = await DataPlanModel.findByIdAndDelete(dataPlan._id);
+        }
       }
 
-      if (!dataPlan) {
+      if (!dataPlan || !deletedPlan) {
         throw new APIError("Data plan not found", HttpStatus.NOT_FOUND);
       }
 
-      // Soft delete
-      dataPlan.isActive = false;
-      await dataPlan.save();
-
-      logger.info(`Data plan deleted (soft): ${dataPlan._id} - ${dataPlan.name}`);
+      logger.info(`Data plan deleted: ${dataPlan._id} - ${dataPlan.name}`);
     } catch (error) {
       logger.error("Failed to delete data plan:", error);
       throw error;
@@ -360,4 +360,3 @@ class DataPlanService {
 }
 
 export default new DataPlanService();
-
