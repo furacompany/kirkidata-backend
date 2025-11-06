@@ -235,22 +235,30 @@ async function processPalmPayWebhook(
 
     // If transaction is successful, credit user wallet with net amount (after charge)
     if (webhookData.orderStatus === 1) {
-      user.wallet += netAmount;
-      await user.save();
+      // Use atomic operation to credit wallet (prevents race conditions with concurrent purchases)
+      const updatedUser = await UserModel.findByIdAndUpdate(
+        virtualAccount.userId,
+        { $inc: { wallet: netAmount } },
+        { new: true }
+      );
+
+      if (!updatedUser) {
+        throw new APIError("User not found", HttpStatus.NOT_FOUND);
+      }
 
       logger.info("User wallet credited via PalmPay webhook", {
-        userId: user._id,
+        userId: updatedUser._id,
         originalAmount: amountInNGN,
         chargeAmount: chargeAmount,
         netAmount: netAmount,
-        newBalance: user.wallet,
+        newBalance: updatedUser.wallet,
         transactionId: transaction._id,
       });
 
       // Create debit transaction for the charge if charge > 0
       if (chargeAmount > 0) {
         const chargeTransaction = new TransactionModel({
-          userId: user._id,
+          userId: updatedUser._id,
           virtualAccountId: virtualAccount._id,
           relatedTransactionId: transaction._id,
           type: "debit",
@@ -276,7 +284,7 @@ async function processPalmPayWebhook(
         await chargeTransaction.save();
 
         logger.info("Charge debit transaction created", {
-          userId: user._id,
+          userId: updatedUser._id,
           chargeAmount: chargeAmount,
           transactionId: chargeTransaction._id,
           relatedFundingTransaction: transaction._id,
