@@ -173,7 +173,7 @@ class DataPlanController {
     }
   }
 
-  // Delete data plan (soft delete)
+  // Delete data plan (hard delete)
   async deleteDataPlan(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
