@@ -117,14 +117,23 @@ class UserService {
         .toString(36)
         .substr(2, 9)}`;
 
-      // Update user wallet
+      // Get previous balance before atomic update
       const previousBalance = user.wallet;
-      user.wallet += amount;
-      await user.save();
+
+      // Use atomic operation to credit wallet (prevents race conditions)
+      const updatedUser = await UserModel.findByIdAndUpdate(
+        userId,
+        { $inc: { wallet: amount } },
+        { new: true }
+      );
+
+      if (!updatedUser) {
+        throw new APIError("User not found", HttpStatus.NOT_FOUND);
+      }
 
       // Create transaction record
       const transaction = new TransactionModel({
-        userId: user._id,
+        userId: updatedUser._id,
         type: "funding",
         amount: amount,
         currency: "NGN",
@@ -135,7 +144,7 @@ class UserService {
           fundingType: "manual",
           adminId: adminId,
           previousBalance: previousBalance,
-          newBalance: user.wallet,
+          newBalance: updatedUser.wallet,
           fundingSource: "admin_manual",
         },
       });
@@ -147,12 +156,12 @@ class UserService {
       );
 
       return {
-        userId: user._id,
+        userId: updatedUser._id,
         transactionId: transaction._id,
         reference: transactionRef,
         amount: amount,
         previousBalance: previousBalance,
-        newBalance: user.wallet,
+        newBalance: updatedUser.wallet,
         description: description || `Manual funding by admin`,
         adminId: adminId,
       };

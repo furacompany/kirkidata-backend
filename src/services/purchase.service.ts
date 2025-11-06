@@ -243,9 +243,16 @@ class PurchaseService {
         );
       }
 
-      // Deduct from user wallet
-      user.wallet -= totalCost;
-      await user.save();
+      // Use atomic operation to deduct from wallet (prevents race conditions)
+      const updatedUser = await UserModel.findByIdAndUpdate(
+        userId,
+        { $inc: { wallet: -totalCost } },
+        { new: true }
+      );
+
+      if (!updatedUser) {
+        throw new APIError("User not found", HttpStatus.NOT_FOUND);
+      }
 
       // Generate unique request ID for Aychindodata
       const requestId = `Airtime_${Date.now()}_${Math.random()
@@ -267,6 +274,8 @@ class PurchaseService {
       });
 
       await transaction.save();
+
+      let refunded = false; // Track if refund has been processed to prevent double refund
 
       try {
         // Call Aychindodata API
@@ -303,9 +312,14 @@ class PurchaseService {
         await transaction.save();
 
         if (transaction.status === "failed") {
-          // Refund user if failed
-          user.wallet += totalCost;
-          await user.save();
+          // Refund user if failed using atomic operation (refetch current balance)
+          await UserModel.findByIdAndUpdate(userId, {
+            $inc: { wallet: totalCost },
+          });
+          refunded = true;
+          logger.info(
+            `Airtime purchase failed, refunded ${totalCost} to user ${userId}`
+          );
           throw new APIError(
             aychindodataResponse.message || "Airtime purchase failed",
             HttpStatus.INTERNAL_SERVER_ERROR
@@ -329,9 +343,17 @@ class PurchaseService {
           message: aychindodataResponse.message,
         };
       } catch (aychindodataError: any) {
-        // If Aychindodata fails, refund user and update transaction
-        user.wallet += totalCost;
-        await user.save();
+        // Only refund if not already refunded (prevents double refund)
+        if (!refunded) {
+          // Refund user using atomic operation (always uses current database balance)
+          await UserModel.findByIdAndUpdate(userId, {
+            $inc: { wallet: totalCost },
+          });
+          refunded = true;
+          logger.info(
+            `Aychindodata error, refunded ${totalCost} to user ${userId}`
+          );
+        }
 
         transaction.status = "failed";
         if (!transaction.metadata) {
@@ -401,9 +423,16 @@ class PurchaseService {
         );
       }
 
-      // Deduct from user wallet
-      user.wallet -= dataPlan.adminPrice;
-      await user.save();
+      // Use atomic operation to deduct from wallet (prevents race conditions)
+      const updatedUser = await UserModel.findByIdAndUpdate(
+        userId,
+        { $inc: { wallet: -dataPlan.adminPrice } },
+        { new: true }
+      );
+
+      if (!updatedUser) {
+        throw new APIError("User not found", HttpStatus.NOT_FOUND);
+      }
 
       // Generate unique request ID for Aychindodata
       const requestId = `Data_${Date.now()}_${Math.random()
@@ -427,6 +456,8 @@ class PurchaseService {
       });
 
       await transaction.save();
+
+      let refunded = false; // Track if refund has been processed to prevent double refund
 
       try {
         // Call Aychindodata API using the planId (convert to number for API)
@@ -471,9 +502,14 @@ class PurchaseService {
         await transaction.save();
 
         if (transaction.status === "failed") {
-          // Refund user if failed
-          user.wallet += dataPlan.adminPrice;
-          await user.save();
+          // Refund user if failed using atomic operation (refetch current balance)
+          await UserModel.findByIdAndUpdate(userId, {
+            $inc: { wallet: dataPlan.adminPrice },
+          });
+          refunded = true;
+          logger.info(
+            `Data purchase failed, refunded ${dataPlan.adminPrice} to user ${userId}`
+          );
           throw new APIError(
             aychindodataResponse.message || "Data purchase failed",
             HttpStatus.INTERNAL_SERVER_ERROR
@@ -496,9 +532,17 @@ class PurchaseService {
           message: aychindodataResponse.message,
         };
       } catch (aychindodataError: any) {
-        // If Aychindodata fails, refund user and update transaction
-        user.wallet += dataPlan.adminPrice;
-        await user.save();
+        // Only refund if not already refunded (prevents double refund)
+        if (!refunded) {
+          // Refund user using atomic operation (always uses current database balance)
+          await UserModel.findByIdAndUpdate(userId, {
+            $inc: { wallet: dataPlan.adminPrice },
+          });
+          refunded = true;
+          logger.info(
+            `Aychindodata error, refunded ${dataPlan.adminPrice} to user ${userId}`
+          );
+        }
 
         transaction.status = "failed";
         if (!transaction.metadata) {
