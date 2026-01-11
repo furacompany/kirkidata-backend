@@ -58,11 +58,11 @@ class VirtualAccountController {
           .replace(/\s+/g, " ")
           .trim();
 
-      // Call PalmPay to create virtual account using BVN
+      // Call PalmPay to create virtual account using NIN
       const palmpayRes = await createVirtualAccount({
         virtualAccountName: virtualAccountName,
-        identityType: "personal",
-        licenseNumber: "22584884665",
+        identityType: "personal_nin",
+        licenseNumber: "32363559284",
         customerName: `${user.firstName.trim()} ${user.lastName.trim()}`,
         email: user.email,
         accountReference: `${COMPANY_INFO.name}-${userId}`,
