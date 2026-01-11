@@ -19,6 +19,7 @@ import {
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
 import logger from "../utils/logger";
+import { getStringParam, getRequiredStringParam } from "../utils/request";
 
 class OtoBillController {
   // Get OtoBill profile
@@ -69,18 +70,16 @@ class OtoBillController {
   // Get data plans for a network
   async getDataPlans(req: Request, res: Response, next: NextFunction) {
     try {
-      const { networkName } = req.params;
-      const { planType, page = 1, limit = 20 } = req.query;
-
-      if (!networkName) {
-        throw new APIError("Network name is required", HttpStatus.BAD_REQUEST);
-      }
+      const networkName = getRequiredStringParam(req.params.networkName, "Network name");
+      const planType = getStringParam(req.query.planType);
+      const page = getStringParam(req.query.page) || "1";
+      const limit = getStringParam(req.query.limit) || "20";
 
       const dataPlans = await otobillService.getDataPlans(
         networkName,
-        planType as string,
-        parseInt(page as string),
-        parseInt(limit as string)
+        planType,
+        parseInt(page),
+        parseInt(limit)
       );
 
       res.status(HttpStatus.OK).json({
@@ -96,11 +95,7 @@ class OtoBillController {
   // Get data plan types for a network
   async getDataPlanTypes(req: Request, res: Response, next: NextFunction) {
     try {
-      const { networkName } = req.params;
-
-      if (!networkName) {
-        throw new APIError("Network name is required", HttpStatus.BAD_REQUEST);
-      }
+      const networkName = getRequiredStringParam(req.params.networkName, "Network name");
 
       const types = await otobillService.getDataPlanTypes(networkName);
 
@@ -117,22 +112,16 @@ class OtoBillController {
   // Get data plans by network and type
   async getDataPlansByType(req: Request, res: Response, next: NextFunction) {
     try {
-      const { networkName, planType } = req.params;
-      const { page = 1, limit = 20 } = req.query;
-
-      if (!networkName) {
-        throw new APIError("Network name is required", HttpStatus.BAD_REQUEST);
-      }
-
-      if (!planType) {
-        throw new APIError("Plan type is required", HttpStatus.BAD_REQUEST);
-      }
+      const networkName = getRequiredStringParam(req.params.networkName, "Network name");
+      const planType = getRequiredStringParam(req.params.planType, "Plan type");
+      const page = getStringParam(req.query.page) || "1";
+      const limit = getStringParam(req.query.limit) || "20";
 
       const dataPlans = await otobillService.getDataPlansByType(
         networkName,
         planType,
-        parseInt(page as string),
-        parseInt(limit as string)
+        parseInt(page),
+        parseInt(limit)
       );
 
       res.status(HttpStatus.OK).json({
@@ -213,14 +202,7 @@ class OtoBillController {
   // Get specific OtoBill transaction
   async getTransaction(req: Request, res: Response, next: NextFunction) {
     try {
-      const { transactionId } = req.params;
-
-      if (!transactionId) {
-        throw new APIError(
-          "Transaction ID is required",
-          HttpStatus.BAD_REQUEST
-        );
-      }
+      const transactionId = getRequiredStringParam(req.params.transactionId, "Transaction ID");
 
       const transaction = await otobillService.getTransaction(transactionId);
 

@@ -11,16 +11,13 @@ import {
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
 import logger from "../utils/logger";
+import { getStringParam, getRequiredStringParam } from "../utils/request";
 
 class UserController {
   // Get user by ID (admin only)
   async getUserById(req: Request, res: Response, next: NextFunction) {
     try {
-      const { userId } = req.params;
-
-      if (!userId) {
-        throw new APIError("User ID is required", HttpStatus.BAD_REQUEST);
-      }
+      const userId = getRequiredStringParam(req.params.userId, "User ID");
 
       // Get user by ID
       const user = await userService.getUserById(userId);
@@ -38,11 +35,7 @@ class UserController {
   // Get user by phone (admin only)
   async getUserByPhone(req: Request, res: Response, next: NextFunction) {
     try {
-      const { phone } = req.params;
-
-      if (!phone) {
-        throw new APIError("Phone number is required", HttpStatus.BAD_REQUEST);
-      }
+      const phone = getRequiredStringParam(req.params.phone, "Phone number");
 
       // Get user by phone
       const user = await userService.getUserByPhone(phone);
@@ -60,11 +53,7 @@ class UserController {
   // Get user by email (admin only)
   async getUserByEmail(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email } = req.params;
-
-      if (!email) {
-        throw new APIError("Email is required", HttpStatus.BAD_REQUEST);
-      }
+      const email = getRequiredStringParam(req.params.email, "Email");
 
       // Get user by email
       const user = await userService.getUserByEmail(email);
@@ -108,8 +97,9 @@ class UserController {
 
       // Resolve the target user id to a guaranteed string
       let targetUserId: string;
-      if (userId) {
-        targetUserId = userId;
+      const userIdStr = getStringParam(userId);
+      if (userIdStr) {
+        targetUserId = userIdStr;
       } else if (req.user?.id) {
         targetUserId = req.user.id;
       } else {
@@ -135,12 +125,8 @@ class UserController {
   // Manual funding with transaction tracking (admin only)
   async manualFunding(req: Request, res: Response, next: NextFunction) {
     try {
-      const { userId } = req.params;
+      const userId = getRequiredStringParam(req.params.userId, "User ID");
       const fundingData = req.body;
-
-      if (!userId) {
-        throw new APIError("User ID is required", HttpStatus.BAD_REQUEST);
-      }
 
       // Validate request body
       const validatedData = validateSchema(manualFundingSchema, fundingData);
@@ -314,11 +300,7 @@ class UserController {
   // Deactivate user (admin only)
   async deactivateUser(req: Request, res: Response, next: NextFunction) {
     try {
-      const { userId } = req.params;
-
-      if (!userId) {
-        throw new APIError("User ID is required", HttpStatus.BAD_REQUEST);
-      }
+      const userId = getRequiredStringParam(req.params.userId, "User ID");
 
       // Deactivate user
       const user = await userService.deactivateUser(userId);
@@ -336,11 +318,7 @@ class UserController {
   // Reactivate user (admin only)
   async reactivateUser(req: Request, res: Response, next: NextFunction) {
     try {
-      const { userId } = req.params;
-
-      if (!userId) {
-        throw new APIError("User ID is required", HttpStatus.BAD_REQUEST);
-      }
+      const userId = getRequiredStringParam(req.params.userId, "User ID");
 
       // Reactivate user
       const user = await userService.reactivateUser(userId);
@@ -358,11 +336,7 @@ class UserController {
   // Delete user (admin only)
   async deleteUser(req: Request, res: Response, next: NextFunction) {
     try {
-      const { userId } = req.params;
-
-      if (!userId) {
-        throw new APIError("User ID is required", HttpStatus.BAD_REQUEST);
-      }
+      const userId = getRequiredStringParam(req.params.userId, "User ID");
 
       // Delete user
       const result = await userService.deleteUser(userId);
@@ -404,8 +378,9 @@ class UserController {
       const { userId } = req.params;
       // Resolve the target user id to a guaranteed string
       let targetUserId: string;
-      if (userId) {
-        targetUserId = userId;
+      const userIdStr = getStringParam(userId);
+      if (userIdStr) {
+        targetUserId = userIdStr;
       } else if (req.user?.id) {
         targetUserId = req.user.id;
       } else {

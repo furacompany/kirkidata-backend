@@ -11,6 +11,7 @@ import {
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
 import logger from "../utils/logger";
+import { getRequiredStringParam } from "../utils/request";
 
 // Interface for populated transaction
 interface PopulatedTransaction {
@@ -517,12 +518,8 @@ class TransactionController {
     next: NextFunction
   ) {
     try {
-      const { userId } = req.params;
+      const userId = getRequiredStringParam(req.params.userId, "User ID");
       const queryParams = req.query;
-
-      if (!userId) {
-        throw new APIError("User ID is required", HttpStatus.BAD_REQUEST);
-      }
 
       // Convert string values to appropriate types
       const filters = {

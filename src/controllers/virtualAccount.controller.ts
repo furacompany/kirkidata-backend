@@ -12,6 +12,7 @@ import logger from "../utils/logger";
 import { verifyBVN } from "../services/bvn.service";
 import { createVirtualAccount } from "../services/palmpay.service";
 import VirtualAccountModel from "../models/virtualAccount.model";
+import { getStringParam, getRequiredStringParam } from "../utils/request";
 
 // Company information constants
 const COMPANY_INFO = {
@@ -207,22 +208,18 @@ class VirtualAccountController {
     next: NextFunction
   ) {
     try {
-      const { accountId } = req.params;
-      const { limit = 10 } = req.query;
+      const accountId = getRequiredStringParam(req.params.accountId, "Account ID");
+      const limitStr = getStringParam(req.query.limit) || "10";
       const userId = req.user?.id;
 
       if (!userId) {
         throw new APIError("Unauthorized", HttpStatus.UNAUTHORIZED);
       }
 
-      if (!accountId) {
-        throw new APIError("Account ID is required", HttpStatus.BAD_REQUEST);
-      }
-
       const accountWithTransactions =
         await virtualAccountService.getVirtualAccountWithTransactions(
           accountId,
-          parseInt(limit as string)
+          parseInt(limitStr)
         );
 
       // Check if user owns this account (for regular users)

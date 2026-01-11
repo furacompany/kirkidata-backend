@@ -8,6 +8,7 @@ import {
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
 import logger from "../utils/logger";
+import { getStringParam, getRequiredStringParam } from "../utils/request";
 
 class DataPlanController {
   // Create a new data plan
@@ -105,11 +106,7 @@ class DataPlanController {
   // Get single data plan by ID
   async getDataPlanById(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
-
-      if (!id) {
-        throw new APIError("Data plan ID is required", HttpStatus.BAD_REQUEST);
-      }
+      const id = getRequiredStringParam(req.params.id, "Data plan ID");
 
       const dataPlan = await dataPlanService.getDataPlanById(id);
 
@@ -140,12 +137,8 @@ class DataPlanController {
   // Update data plan
   async updateDataPlan(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = getRequiredStringParam(req.params.id, "Data plan ID");
       const validatedData = validateSchema(updateDataPlanSchema, req.body);
-
-      if (!id) {
-        throw new APIError("Data plan ID is required", HttpStatus.BAD_REQUEST);
-      }
 
       const dataPlan = await dataPlanService.updateDataPlan(id, validatedData);
 
@@ -176,11 +169,7 @@ class DataPlanController {
   // Delete data plan (hard delete)
   async deleteDataPlan(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
-
-      if (!id) {
-        throw new APIError("Data plan ID is required", HttpStatus.BAD_REQUEST);
-      }
+      const id = getRequiredStringParam(req.params.id, "Data plan ID");
 
       await dataPlanService.deleteDataPlan(id);
 
@@ -196,10 +185,13 @@ class DataPlanController {
   // Get plan types for a network
   async getPlanTypes(req: Request, res: Response, next: NextFunction) {
     try {
-      const { networkName } = req.params;
-      const { networkName: queryNetworkName } = req.query;
+      const networkName = getStringParam(req.params.networkName);
+      const queryNetworkName = getStringParam(req.query.networkName);
 
-      const network = networkName || (queryNetworkName as string);
+      const network = networkName || queryNetworkName;
+      if (!network) {
+        throw new APIError("Network name is required", HttpStatus.BAD_REQUEST);
+      }
 
       const planTypes = await dataPlanService.getPlanTypes(network);
 
@@ -220,16 +212,10 @@ class DataPlanController {
     next: NextFunction
   ) {
     try {
-      const { networkName, planType } = req.params;
-      const { page = 1, limit = 20 } = req.query;
-
-      if (!networkName) {
-        throw new APIError("Network name is required", HttpStatus.BAD_REQUEST);
-      }
-
-      if (!planType) {
-        throw new APIError("Plan type is required", HttpStatus.BAD_REQUEST);
-      }
+      const networkName = getRequiredStringParam(req.params.networkName, "Network name");
+      const planType = getRequiredStringParam(req.params.planType, "Plan type");
+      const page = getStringParam(req.query.page) || "1";
+      const limit = getStringParam(req.query.limit) || "20";
 
       const result = await dataPlanService.getDataPlansByNetworkAndType(
         networkName,
