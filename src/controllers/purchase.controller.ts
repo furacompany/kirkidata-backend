@@ -10,6 +10,7 @@ import {
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
 import logger from "../utils/logger";
+import { getStringParam, getRequiredStringParam } from "../utils/request";
 
 class PurchaseController {
   // Get available networks for users
@@ -30,11 +31,7 @@ class PurchaseController {
   // Get data plan categories/types for a network
   async getDataPlanCategories(req: Request, res: Response, next: NextFunction) {
     try {
-      const { networkName } = req.params;
-
-      if (!networkName) {
-        throw new APIError("Network name is required", HttpStatus.BAD_REQUEST);
-      }
+      const networkName = getRequiredStringParam(req.params.networkName, "Network name");
 
       const categories = await purchaseService.getDataPlanCategories(
         networkName
@@ -53,26 +50,20 @@ class PurchaseController {
   // Get data plans for users to browse
   async getDataPlans(req: Request, res: Response, next: NextFunction) {
     try {
-      const { networkName } = req.params;
-      const {
-        planType,
-        page = 1,
-        limit = 20,
-        sortBy = "price",
-        sortOrder = "asc",
-      } = req.query;
-
-      if (!networkName) {
-        throw new APIError("Network name is required", HttpStatus.BAD_REQUEST);
-      }
+      const networkName = getRequiredStringParam(req.params.networkName, "Network name");
+      const planType = getStringParam(req.query.planType);
+      const page = getStringParam(req.query.page) || "1";
+      const limit = getStringParam(req.query.limit) || "20";
+      const sortBy = getStringParam(req.query.sortBy) || "price";
+      const sortOrder = getStringParam(req.query.sortOrder) || "asc";
 
       const dataPlans = await purchaseService.getDataPlans(
         networkName,
-        planType as string,
-        parseInt(page as string),
-        parseInt(limit as string),
-        sortBy as string,
-        sortOrder as string
+        planType,
+        parseInt(page),
+        parseInt(limit),
+        sortBy,
+        sortOrder
       );
 
       res.status(HttpStatus.OK).json({
@@ -92,29 +83,20 @@ class PurchaseController {
     next: NextFunction
   ) {
     try {
-      const { networkName, planType } = req.params;
-      const {
-        page = 1,
-        limit = 20,
-        sortBy = "price",
-        sortOrder = "asc",
-      } = req.query;
-
-      if (!networkName) {
-        throw new APIError("Network name is required", HttpStatus.BAD_REQUEST);
-      }
-
-      if (!planType) {
-        throw new APIError("Plan type is required", HttpStatus.BAD_REQUEST);
-      }
+      const networkName = getRequiredStringParam(req.params.networkName, "Network name");
+      const planType = getRequiredStringParam(req.params.planType, "Plan type");
+      const page = getStringParam(req.query.page) || "1";
+      const limit = getStringParam(req.query.limit) || "20";
+      const sortBy = getStringParam(req.query.sortBy) || "price";
+      const sortOrder = getStringParam(req.query.sortOrder) || "asc";
 
       const dataPlans = await purchaseService.getDataPlansByCategory(
         networkName,
         planType,
-        parseInt(page as string),
-        parseInt(limit as string),
-        sortBy as string,
-        sortOrder as string
+        parseInt(page),
+        parseInt(limit),
+        sortBy,
+        sortOrder
       );
 
       res.status(HttpStatus.OK).json({
@@ -210,14 +192,7 @@ class PurchaseController {
   ) {
     try {
       const userId = (req as any).user.id;
-      const { transactionId } = req.params;
-
-      if (!transactionId) {
-        throw new APIError(
-          "Transaction ID is required",
-          HttpStatus.BAD_REQUEST
-        );
-      }
+      const transactionId = getRequiredStringParam(req.params.transactionId, "Transaction ID");
 
       const status = await purchaseService.checkTransactionStatus(
         userId,

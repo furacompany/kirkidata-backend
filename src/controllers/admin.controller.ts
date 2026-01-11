@@ -5,6 +5,7 @@ import { adminProfileUpdateSchema, adminPasswordChangeSchema } from "../validati
 import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
 import logger from "../utils/logger";
+import { getStringParam } from "../utils/request";
 
 class AdminController {
   // Update admin profile
@@ -23,8 +24,9 @@ class AdminController {
 
       // Resolve to guaranteed string
       let targetAdminId: string;
-      if (adminId) {
-        targetAdminId = adminId;
+      const adminIdStr = getStringParam(adminId);
+      if (adminIdStr) {
+        targetAdminId = adminIdStr;
       } else if (req.admin?.id) {
         targetAdminId = req.admin.id;
       } else {
@@ -73,8 +75,9 @@ class AdminController {
 
       // Resolve to guaranteed string
       let targetAdminId: string;
-      if (adminId) {
-        targetAdminId = adminId;
+      const adminIdStr = getStringParam(adminId);
+      if (adminIdStr) {
+        targetAdminId = adminIdStr;
       } else if (req.admin?.id) {
         targetAdminId = req.admin.id;
       } else {
