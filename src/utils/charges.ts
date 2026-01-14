@@ -4,8 +4,9 @@
  * @returns The charge amount in NGN
  */
 export function calculateFundingCharge(amount: number): number {
-  if (amount < 500) return 0;
-  if (amount <= 1000) return 10;
-  if (amount <= 3000) return 30;
-  return 40;
+  if (amount < 100) return 0;
+  if (amount <= 499) return 20;
+  if (amount <= 999) return 30;
+  if (amount < 3000) return 50; // 1000-2999
+  return 60; // 3000 and above
 }
