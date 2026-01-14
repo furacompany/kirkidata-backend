@@ -12,11 +12,8 @@ export const airtimePurchaseSchema = Joi.object({
       "any.required": "Network name is required",
     }),
   phoneNumber: Joi.string()
-    .pattern(/^0[789][01]\d{8}$/)
     .required()
     .messages({
-      "string.pattern.base":
-        "Phone number must be in Nigerian format (e.g., 08123456789)",
       "any.required": "Phone number is required",
     }),
   amount: Joi.number().integer().min(50).max(50000).required().messages({
@@ -39,11 +36,8 @@ export const dataPurchaseSchema = Joi.object({
     "string.empty": "Plan ID cannot be empty",
   }),
   phoneNumber: Joi.string()
-    .pattern(/^0[789][01]\d{8}$/)
     .required()
     .messages({
-      "string.pattern.base":
-        "Phone number must be in Nigerian format (e.g., 08123456789)",
       "any.required": "Phone number is required",
     }),
 })
