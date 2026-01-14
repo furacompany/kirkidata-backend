@@ -360,6 +360,119 @@ class VirtualAccountController {
     }
   }
 
+  // Create virtual account for user (admin only)
+  async createVirtualAccountForUser(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const userId = getRequiredStringParam(req.params.userId, "User ID");
+
+      // Get admin ID from authenticated admin
+      const adminId = req.admin?.id;
+      if (!adminId) {
+        throw new APIError(
+          "Admin authentication required",
+          HttpStatus.UNAUTHORIZED
+        );
+      }
+
+      // Validate request body (no fields required, same as user endpoint)
+      validateSchema(createVirtualAccountSchema, req.body);
+
+      // Check if user already has a virtual account
+      const existingAccount = await VirtualAccountModel.findOne({
+        userId,
+        provider: "palmpay",
+      });
+
+      if (existingAccount) {
+        throw new APIError(
+          "Virtual account already exists for this user. Each user can only have one virtual account.",
+          HttpStatus.CONFLICT
+        );
+      }
+
+      // Get user details
+      const user = await virtualAccountService.getUserById(userId);
+      if (!user) {
+        throw new APIError("User not found", HttpStatus.NOT_FOUND);
+      }
+
+      // Create virtual account name
+      const virtualAccountName =
+        `${user.firstName.trim()} ${user.lastName.trim()}`
+          .replace(/\s+/g, " ")
+          .trim();
+
+      // Call PalmPay to create virtual account using NIN
+      const palmpayRes = await createVirtualAccount({
+        virtualAccountName: virtualAccountName,
+        identityType: "personal_nin",
+        licenseNumber: "32363559284",
+        customerName: `${user.firstName.trim()} ${user.lastName.trim()}`,
+        email: user.email,
+        accountReference: `${COMPANY_INFO.name}-${userId}`,
+      });
+
+      if (!palmpayRes || palmpayRes.respCode !== "00000000") {
+        throw new APIError(
+          `PalmPay error: ${palmpayRes?.respMsg || "Unknown error"}`,
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      // Save to database
+      const virtualAccount = await VirtualAccountModel.create({
+        userId,
+        provider: "palmpay",
+        virtualAccountNo: palmpayRes.data.virtualAccountNo,
+        virtualAccountName: palmpayRes.data.virtualAccountName
+          .replace(/\n/g, "")
+          .replace(/\r/g, "")
+          .replace(/\s+/g, " ")
+          .trim(),
+        status: palmpayRes.data.status,
+        identityType: palmpayRes.data.identityType,
+        licenseNumber: palmpayRes.data.licenseNumber,
+        customerName: palmpayRes.data.customerName
+          .replace(/\n/g, "")
+          .replace(/\r/g, "")
+          .replace(/\s+/g, " ")
+          .trim(),
+        email: palmpayRes.data.email,
+        accountReference: palmpayRes.data.accountReference,
+        rawResponse: palmpayRes,
+      });
+
+      logger.info("Virtual account created successfully by admin", {
+        userId,
+        adminId,
+        virtualAccountNo: virtualAccount.virtualAccountNo,
+        virtualAccountName: virtualAccount.virtualAccountName,
+      });
+
+      res.status(HttpStatus.CREATED).json({
+        success: true,
+        message: "Virtual account created successfully",
+        data: {
+          virtualAccountNo: virtualAccount.virtualAccountNo,
+          virtualAccountName: virtualAccount.virtualAccountName,
+          status: virtualAccount.status,
+          provider: virtualAccount.provider,
+          customerName: virtualAccount.customerName,
+          email: virtualAccount.email,
+          accountReference: virtualAccount.accountReference,
+          createdAt: virtualAccount.createdAt,
+          createdBy: adminId,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // Health check endpoint
   async healthCheck(req: Request, res: Response, next: NextFunction) {
     try {
