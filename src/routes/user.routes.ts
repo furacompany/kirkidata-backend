@@ -1,5 +1,6 @@
 import { Router } from "express";
 import userController from "../controllers/user.controller";
+import virtualAccountController from "../controllers/virtualAccount.controller";
 import {
   authenticateUser,
   authenticateAdmin,
@@ -33,6 +34,9 @@ router.patch("/:userId", authenticateAdmin, (req, res, next) =>
 );
 router.post("/:userId/fund", authenticateAdmin, (req, res, next) =>
   userController.manualFunding(req, res, next)
+);
+router.post("/:userId/virtual-account", authenticateAdmin, (req, res, next) =>
+  virtualAccountController.createVirtualAccountForUser(req, res, next)
 );
 router.get("/", authenticateAdmin, (req, res, next) =>
   userController.searchUsers(req, res, next)
