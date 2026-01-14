@@ -12,6 +12,7 @@ import APIError from "../error/APIError";
 import { HttpStatus } from "../constants/httpStatus.constant";
 import logger from "../utils/logger";
 import { getStringParam, getRequiredStringParam } from "../utils/request";
+import VirtualAccountModel from "../models/virtualAccount.model";
 
 class UserController {
   // Get user by ID (admin only)
@@ -22,10 +23,35 @@ class UserController {
       // Get user by ID
       const user = await userService.getUserById(userId);
 
+      // Get user's virtual account
+      const virtualAccount = await VirtualAccountModel.findOne({
+        userId: userId,
+        provider: "palmpay",
+      }).select("-rawResponse"); // Exclude raw response for security
+
+      // Format response with virtual account
+      const userData = user.toObject();
+      const responseData = {
+        ...userData,
+        virtualAccount: virtualAccount
+          ? {
+              virtualAccountNo: virtualAccount.virtualAccountNo,
+              virtualAccountName: virtualAccount.virtualAccountName,
+              status: virtualAccount.status,
+              provider: virtualAccount.provider,
+              customerName: virtualAccount.customerName,
+              email: virtualAccount.email,
+              accountReference: virtualAccount.accountReference,
+              createdAt: virtualAccount.createdAt,
+              updatedAt: virtualAccount.updatedAt,
+            }
+          : null,
+      };
+
       res.status(HttpStatus.OK).json({
         success: true,
         message: "User retrieved successfully",
-        data: user,
+        data: responseData,
       });
     } catch (error) {
       next(error);
